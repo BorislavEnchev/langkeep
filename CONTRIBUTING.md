@@ -46,12 +46,12 @@ By participating in this project, you agree to maintain a respectful, inclusive,
 
 - Windows 10 or Windows 11
 - [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
-- [Visual Studio 2022](https://visualstudio.microsoft.com/) (recommended) or any .NET-compatible editor
+- [Visual Studio 2026](https://visualstudio.microsoft.com/) (recommended) or any .NET-compatible editor
 
 ### Quick Start
 
 ```bash
-git clone https://github.com/your-org/langkeep.git
+git clone https://github.com/BorislavEnchev/langkeep.git
 cd langkeep
 dotnet restore
 dotnet build
