@@ -74,4 +74,4 @@
 
 ## Contributing
 
-See the [milestones](https://github.com/your-org/langkeep/milestones) for current sprint goals and [CONTRIBUTING.md](CONTRIBUTING.md) for how to get involved.
+See the [CONTRIBUTING.md](CONTRIBUTING.md) for how to get involved.
