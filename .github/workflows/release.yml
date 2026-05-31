@@ -29,17 +29,11 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # ---------------------------------------------------------------
-      # Checkout
-      # ---------------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # ---------------------------------------------------------------
-      # Derive version from Git tag
-      # ---------------------------------------------------------------
       - name: Derive version from tag
         id: version
         shell: pwsh
@@ -51,9 +45,6 @@ jobs:
           echo "version=$version" >> $env:GITHUB_OUTPUT
           echo "tag=$tag" >> $env:GITHUB_OUTPUT
 
-      # ---------------------------------------------------------------
-      # Setup .NET SDK & MSBuild
-      # ---------------------------------------------------------------
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
@@ -62,27 +53,15 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      # ---------------------------------------------------------------
-      # Restore dependencies
-      # ---------------------------------------------------------------
       - name: Restore dependencies
         run: dotnet restore ${{ env.SOLUTION }}
 
-      # ---------------------------------------------------------------
-      # Build solution
-      # ---------------------------------------------------------------
       - name: Build solution
         run: dotnet build ${{ env.SOLUTION }} --configuration ${{ env.CONFIGURATION }} --no-restore
 
-      # ---------------------------------------------------------------
-      # Run tests
-      # ---------------------------------------------------------------
       - name: Run tests
         run: dotnet test ${{ env.SOLUTION }} --configuration ${{ env.CONFIGURATION }} --no-build --logger "trx;LogFileName=test-results.trx"
 
-      # ---------------------------------------------------------------
-      # Publish WPF application (self-contained for portable package)
-      # ---------------------------------------------------------------
       - name: Publish WPF application
         run: |
           dotnet publish ${{ env.PROJECT_WPF }} `
@@ -95,9 +74,6 @@ jobs:
             -p:InformationalVersion=${{ steps.version.outputs.version }} `
             -p:Version=${{ steps.version.outputs.version }}
 
-      # ---------------------------------------------------------------
-      # Create portable ZIP
-      # ---------------------------------------------------------------
       - name: Create portable ZIP
         shell: pwsh
         run: |
@@ -105,18 +81,13 @@ jobs:
           $source = "${{ runner.temp }}/publish/portable"
           $zipName = "LangKeep-$version-portable-x64.zip"
           $zipPath = "${{ runner.temp }}/artifacts/$zipName"
-
           New-Item -ItemType Directory -Force -Path "${{ runner.temp }}/artifacts" | Out-Null
           Copy-Item "LICENSE" -Destination "$source/LICENSE.txt" -Force
           Compress-Archive -Path "$source/*" -DestinationPath $zipPath -CompressionLevel Optimal
-
           Write-Host "Created portable package: $zipName"
           echo "portable-path=$zipPath" >> $env:GITHUB_OUTPUT
           echo "portable-name=$zipName" >> $env:GITHUB_OUTPUT
 
-      # ---------------------------------------------------------------
-      # Prepare MSIX package (using MakeAppx.exe directly)
-      # ---------------------------------------------------------------
       - name: Prepare and create MSIX package
         id: prepare-msix
         shell: pwsh
@@ -127,30 +98,24 @@ jobs:
           $stagingDir = "${{ runner.temp }}\msix-staging"
           $publishDir = "${{ runner.temp }}/publish/portable"
 
-          # Create directories
           New-Item -ItemType Directory -Force -Path "${{ runner.temp }}\artifacts" | Out-Null
           New-Item -ItemType Directory -Force -Path "$stagingDir\Resources" | Out-Null
 
-          # Copy published files to staging
           Write-Host "Copying published files to staging..."
           Copy-Item -Path "$publishDir\*" -Destination $stagingDir -Recurse -Force
 
-          # Copy logo resources
           Write-Host "Copying logo resources..."
           Copy-Item -Path "${{ github.workspace }}\${{ env.MANIFEST_DIR }}\Resources\*" `
             -Destination "$stagingDir\Resources\" -Force
 
-          # Read manifest template and fix placeholders
           Write-Host "Fixing manifest placeholders..."
           $manifestSrc = "${{ github.workspace }}\${{ env.MANIFEST_DIR }}\Package.appxmanifest"
           $manifestDst = "$stagingDir\AppxManifest.xml"
 
-          # Ensure version has 4 parts
           $parts = $version.Split('.')
           while ($parts.Count -lt 4) { $parts += '0' }
           $msixVersion = $parts[0..3] -join '.'
 
-          # Use string replacements (avoids XML namespace issues)
           $content = [System.IO.File]::ReadAllText($manifestSrc)
           $content = $content.Replace('$targetnametoken$', 'LangKeep')
           $content = $content.Replace('$targetentrypoint$', 'Windows.FullTrustApplication')
@@ -159,7 +124,6 @@ jobs:
 
           Write-Host "Manifest prepared with version: $msixVersion"
 
-          # Find or install MakeAppx.exe (part of Windows SDK)
           $makeAppx = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" `
             -Recurse -Filter "MakeAppx.exe" `
             | Sort-Object FullName -Descending `
@@ -175,13 +139,11 @@ jobs:
           }
 
           if (-not $makeAppx) {
-            Write-Host "ERROR: MakeAppx.exe not found after install attempt! Cannot create MSIX."
+            Write-Host "ERROR: MakeAppx.exe not found! Cannot create MSIX."
             exit 1
           }
 
           Write-Host "Found MakeAppx: $makeAppx"
-
-          # Create the MSIX package
           & $makeAppx pack /p $msixPath /d $stagingDir /l 2>&1 | Write-Host
 
           if ($LASTEXITCODE -eq 0) {
@@ -194,16 +156,12 @@ jobs:
           echo "msix-path=$msixPath" >> $env:GITHUB_OUTPUT
           echo "msix-name=$msixName" >> $env:GITHUB_OUTPUT
 
-      # ---------------------------------------------------------------
-      # Get signing certificate (from secret or generate self-signed)
-      # ---------------------------------------------------------------
       - name: Get signing certificate
         id: cert
         shell: pwsh
         run: |
           $pfxPath = "${{ runner.temp }}\langkeep-cert.pfx"
           $pfxPassword = "LangKeepBuildCert2024"
-
           $encoded = "${{ secrets.MSIX_SIGNING_CERTIFICATE }}"
           if (-not [string]::IsNullOrEmpty($encoded)) {
             Write-Host "Using certificate from GitHub Secrets..."
@@ -211,7 +169,7 @@ jobs:
             Write-Host "Certificate decoded from MSIX_SIGNING_CERTIFICATE secret"
             $pfxPassword = "${{ secrets.MSIX_SIGNING_PASSWORD }}"
           } else {
-            Write-Host "No MSIX_SIGNING_CERTIFICATE secret found. Generating self-signed certificate..."
+            Write-Host "No MSIX_SIGNING_CERTIFICATE secret. Generating self-signed certificate..."
             $cert = New-SelfSignedCertificate `
               -Type Custom `
               -Subject "CN=Borislav Enchev, O=LangKeep" `
@@ -220,18 +178,13 @@ jobs:
               -CertStoreLocation "Cert:\CurrentUser\My" `
               -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3") `
               -NotAfter (Get-Date).AddYears(3)
-
             $securePassword = ConvertTo-SecureString -String $pfxPassword -Force -AsPlainText
             Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $securePassword | Out-Null
             Write-Host "Self-signed certificate generated (thumbprint: $($cert.Thumbprint))"
           }
-
           echo "pfx-path=$pfxPath" >> $env:GITHUB_OUTPUT
           echo "pfx-password=$pfxPassword" >> $env:GITHUB_OUTPUT
 
-      # ---------------------------------------------------------------
-      # Sign MSIX package
-      # ---------------------------------------------------------------
       - name: Sign MSIX package
         shell: pwsh
         run: |
@@ -243,23 +196,22 @@ jobs:
             Write-Host "WARNING: MSIX not found at $msixPath, skipping signing."
             exit 0
           }
-
           if (-not (Test-Path $pfxPath)) {
             Write-Host "WARNING: Certificate not found at $pfxPath, skipping signing."
             exit 0
           }
 
-          # Find signtool.exe (part of Windows SDK) — prefer x64 version for MSIX signing
+          # Prefer x64 signtool.exe (x86 version fails with ERROR_BAD_FORMAT on x64 MSIX)
           $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" `
-            -Recurse -Filter "signtool.exe" `
-            | Where-Object { $_.DirectoryName -match '\\x64\\|\\arm64\\' } `
+            -Filter "signtool.exe" -Recurse -Force `
+            | Where-Object FullName -like '*\x64\signtool.exe' `
             | Sort-Object FullName -Descending `
             | Select-Object -First 1 -ExpandProperty FullName
 
           if (-not $signtool) {
-            # Fallback: any version
+            # Fallback: any architecture
             $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" `
-              -Recurse -Filter "signtool.exe" `
+              -Filter "signtool.exe" -Recurse -Force `
               | Sort-Object FullName -Descending `
               | Select-Object -First 1 -ExpandProperty FullName
           }
@@ -284,20 +236,15 @@ jobs:
             Write-Host "MSIX signed successfully!"
           } else {
             Write-Host "Signing failed with exit code: $LASTEXITCODE"
+            exit $LASTEXITCODE
           }
 
-      # ---------------------------------------------------------------
-      # List all generated artifacts for debugging
-      # ---------------------------------------------------------------
       - name: List artifacts
         shell: pwsh
         run: |
           Write-Host "Generated artifacts:"
           Get-ChildItem -Path "${{ runner.temp }}\artifacts" -Recurse | Select-Object Name, Length | Format-Table -AutoSize
 
-      # ---------------------------------------------------------------
-      # Create GitHub Release
-      # ---------------------------------------------------------------
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v2
