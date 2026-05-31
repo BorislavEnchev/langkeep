@@ -16,6 +16,10 @@ on:
     tags:
       - 'v*'
 
+# Grant GITHUB_TOKEN permissions to create releases and upload artifacts
+permissions:
+  contents: write
+
 env:
   DOTNET_VERSION: '9.0.x'
   CONFIGURATION: Release
