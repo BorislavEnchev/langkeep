@@ -223,12 +223,11 @@ jobs:
 
           Write-Host "Signing MSIX with: $signtool"
 
+          # Try signing without timestamp (more reliable for self-signed certs)
           & $signtool sign `
             /fd SHA256 `
             /f $pfxPath `
             /p $pfxPassword `
-            /tr http://timestamp.digicert.com `
-            /td SHA256 `
             /v `
             $msixPath 2>&1 | Write-Host
 
