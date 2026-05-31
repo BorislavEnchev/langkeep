@@ -14,7 +14,6 @@
     <PublisherDisplayName>Borislav Enchev</PublisherDisplayName>
     <Logo>Resources\Square150x150Logo.png</Logo>
     <Description>Automatically remembers and restores your preferred keyboard input language for each application.</Description>
-    <SupportedUsers>single</SupportedUsers>
   </Properties>
 
   <Dependencies>
