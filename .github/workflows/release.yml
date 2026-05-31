@@ -62,10 +62,19 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Install Windows SDK
+      - name: Debug - List installed Windows SDKs
         shell: pwsh
         run: |
-          choco install windows-sdk-10.1 -y --no-progress
+          Write-Host "=== Installed Windows SDK versions ==="
+          Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Include" -Directory | Select-Object Name
+          Write-Host ""
+          Write-Host "=== Windows Kits bin directories ==="
+          Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Directory | Select-Object Name
+
+      - name: Install Windows SDK 10.0.22621
+        uses: GuillaumeFalourd/setup-windows10-sdk-action@v2
+        with:
+          sdk-version: 22621
         
       # ---------------------------------------------------------------
       # Restore dependencies
