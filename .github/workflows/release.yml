@@ -62,6 +62,11 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
+      - name: Install Windows SDK
+        shell: pwsh
+        run: |
+          choco install windows-sdk-10.1 -y --no-progress
+        
       # ---------------------------------------------------------------
       # Restore dependencies
       # ---------------------------------------------------------------
