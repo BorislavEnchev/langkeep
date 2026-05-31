@@ -1,0 +1,353 @@
+# LangKeep Release Pipeline
+#
+# Triggered by pushing a version tag (e.g., v0.1.0, v1.0.0).
+# Produces:
+#   - LangKeep-{version}-portable-x64.zip  (portable, self-contained)
+#   - LangKeep-{version}-x64.msix          (MSIX installer)
+#
+# Usage:
+#   git tag v0.1.0
+#   git push origin v0.1.0
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  CONFIGURATION: Release
+  PROJECT_WPF: src/LangKeep.UI.Wpf/LangKeep.UI.Wpf.csproj
+  SOLUTION: LangKeep.sln
+  PACKAGING_PROJECT: src/LangKeep.Packaging/LangKeep.Packaging.wapproj
+
+jobs:
+  build:
+    name: Build and Package
+    runs-on: windows-latest
+
+    steps:
+      # ---------------------------------------------------------------
+      # Checkout
+      # ---------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for version derivation
+
+      # ---------------------------------------------------------------
+      # Derive version from Git tag
+      # ---------------------------------------------------------------
+      - name: Derive version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag -replace '^v', ''
+          Write-Host "Tag: $tag"
+          Write-Host "Version: $version"
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      # ---------------------------------------------------------------
+      # Setup .NET SDK & MSBuild
+      # ---------------------------------------------------------------
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      # ---------------------------------------------------------------
+      # Restore dependencies
+      # ---------------------------------------------------------------
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION }}
+
+      # ---------------------------------------------------------------
+      # Build solution
+      # ---------------------------------------------------------------
+      - name: Build solution
+        run: dotnet build ${{ env.SOLUTION }} --configuration ${{ env.CONFIGURATION }} --no-restore
+
+      # ---------------------------------------------------------------
+      # Run tests
+      # ---------------------------------------------------------------
+      - name: Run tests
+        run: dotnet test ${{ env.SOLUTION }} --configuration ${{ env.CONFIGURATION }} --no-build --logger "trx;LogFileName=test-results.trx"
+
+      # ---------------------------------------------------------------
+      # Publish WPF application (self-contained for portable package)
+      # ---------------------------------------------------------------
+      - name: Publish WPF application
+        run: |
+          dotnet publish ${{ env.PROJECT_WPF }} `
+            --configuration ${{ env.CONFIGURATION }} `
+            --runtime win-x64 `
+            --self-contained true `
+            --output "${{ runner.temp }}/publish/portable" `
+            -p:DebugType=none `
+            -p:FileVersion=${{ steps.version.outputs.version }} `
+            -p:InformationalVersion=${{ steps.version.outputs.version }} `
+            -p:Version=${{ steps.version.outputs.version }}
+
+      # ---------------------------------------------------------------
+      # Create portable ZIP
+      # ---------------------------------------------------------------
+      - name: Create portable ZIP
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $source = "${{ runner.temp }}/publish/portable"
+          $zipName = "LangKeep-$version-portable-x64.zip"
+          $zipPath = "${{ runner.temp }}/artifacts/$zipName"
+
+          # Create artifacts directory
+          New-Item -ItemType Directory -Force -Path "${{ runner.temp }}/artifacts" | Out-Null
+
+          # Copy license file
+          Copy-Item "LICENSE" -Destination "$source/LICENSE.txt" -Force
+
+          # Create the ZIP
+          Compress-Archive -Path "$source/*" -DestinationPath $zipPath -CompressionLevel Optimal
+
+          Write-Host "Created portable package: $zipName"
+          echo "portable-path=$zipPath" >> $env:GITHUB_OUTPUT
+          echo "portable-name=$zipName" >> $env:GITHUB_OUTPUT
+
+      # ---------------------------------------------------------------
+      # Update MSIX manifest version from Git tag
+      # ---------------------------------------------------------------
+      - name: Update MSIX manifest version
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $manifestPath = "${{ github.workspace }}/src/LangKeep.Packaging/Package.appxmanifest"
+
+          # Ensure version has 4 parts (MSIX requires Major.Minor.Build.Revision)
+          $parts = $version.Split('.')
+          while ($parts.Count -lt 4) { $parts += '0' }
+          $msixVersion = $parts[0..3] -join '.'
+
+          $xml = [xml](Get-Content $manifestPath)
+          $xml.Package.Identity.Version = $msixVersion
+          $xml.Save($manifestPath)
+
+          Write-Host "Updated MSIX manifest version to: $msixVersion"
+
+      # ---------------------------------------------------------------
+      # Build MSIX package
+      # ---------------------------------------------------------------
+      - name: Build MSIX package
+        run: |
+          msbuild ${{ env.PACKAGING_PROJECT }} `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /p:GenerateAppxPackageOnBuild=true `
+            /p:UapAppxPackageBuildMode=SideloadOnly `
+            /p:AppxPackageSigningEnabled=false `
+            /p:AppxDefaultResourceQualifiers="Language=en-US" `
+            /p:AppxOSMinVersion=10.0.17763.0 `
+            /p:AppxOSMaxVersionTested=10.0.22621.0 `
+            /t:Restore,Build `
+            /p:RestorePackagesConfig=false
+
+      # ---------------------------------------------------------------
+      # Locate and rename MSIX artifact
+      # ---------------------------------------------------------------
+      - name: Locate and rename MSIX artifact
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $expectedName = "LangKeep-$version-x64.msix"
+
+          # Ensure artifacts directory exists
+          New-Item -ItemType Directory -Force -Path "${{ runner.temp }}\artifacts" | Out-Null
+
+          # Search for .msix files in common wapproj output locations
+          $searchPaths = @(
+            "${{ runner.temp }}",
+            "${{ github.workspace }}\AppPackages",
+            "${{ github.workspace }}\src\LangKeep.Packaging",
+            "${{ github.workspace }}\src\LangKeep.Packaging\bin"
+          )
+
+          $msixFile = $null
+          foreach ($path in $searchPaths) {
+            $found = Get-ChildItem -Path $path -Filter "*.msix" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) {
+              $msixFile = $found
+              Write-Host "Found MSIX at: $($msixFile.FullName)"
+              break
+            }
+          }
+
+          if ($msixFile) {
+            $expectedPath = "${{ runner.temp }}\artifacts\$expectedName"
+            Copy-Item -Path $msixFile.FullName -Destination $expectedPath -Force
+            Write-Host "Copied MSIX to: $expectedPath"
+          } else {
+            Write-Host "WARNING: No MSIX file found. Package may not have been generated."
+            Write-Host "Searching deeper..."
+            Get-ChildItem -Path "${{ github.workspace }}" -Filter "*.msix" -Recurse -ErrorAction SilentlyContinue | Select-Object FullName
+          }
+
+          echo "msix-path=$expectedPath" >> $env:GITHUB_OUTPUT
+          echo "msix-name=$expectedName" >> $env:GITHUB_OUTPUT
+
+      # ---------------------------------------------------------------
+      # Get signing certificate (from secret or generate self-signed)
+      # ---------------------------------------------------------------
+      - name: Get signing certificate
+        id: cert
+        shell: pwsh
+        run: |
+          $pfxPath = "${{ runner.temp }}\langkeep-cert.pfx"
+          $pfxPassword = "LangKeepBuildCert2024"
+
+          $encoded = "${{ secrets.MSIX_SIGNING_CERTIFICATE }}"
+          if (-not [string]::IsNullOrEmpty($encoded)) {
+            # Use certificate from GitHub Secrets
+            Write-Host "Using certificate from GitHub Secrets..."
+            [System.IO.File]::WriteAllBytes($pfxPath, [System.Convert]::FromBase64String($encoded))
+            Write-Host "✅ Certificate decoded from MSIX_SIGNING_CERTIFICATE secret"
+            $pfxPassword = "${{ secrets.MSIX_SIGNING_PASSWORD }}"
+          } else {
+            # Generate a self-signed certificate (fallback)
+            Write-Host "No MSIX_SIGNING_CERTIFICATE secret found. Generating self-signed certificate..."
+            $cert = New-SelfSignedCertificate `
+              -Type Custom `
+              -Subject "CN=Borislav Enchev, O=LangKeep" `
+              -KeyUsage DigitalSignature `
+              -FriendlyName "LangKeep Build Certificate" `
+              -CertStoreLocation "Cert:\CurrentUser\My" `
+              -TextExtension @(
+                "2.5.29.37={text}1.3.6.1.5.5.7.3.3"
+              ) `
+              -NotAfter (Get-Date).AddYears(3)
+
+            $securePassword = ConvertTo-SecureString -String $pfxPassword -Force -AsPlainText
+            Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $securePassword | Out-Null
+            Write-Host "✅ Self-signed certificate generated (thumbprint: $($cert.Thumbprint))"
+          }
+
+          echo "pfx-path=$pfxPath" >> $env:GITHUB_OUTPUT
+          echo "pfx-password=$pfxPassword" >> $env:GITHUB_OUTPUT
+
+      # ---------------------------------------------------------------
+      # Sign MSIX package
+      # ---------------------------------------------------------------
+      - name: Sign MSIX package
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $msixPath = "${{ runner.temp }}\artifacts\LangKeep-$version-x64.msix"
+          $pfxPath = "${{ steps.cert.outputs.pfx-path }}"
+          $pfxPassword = "${{ steps.cert.outputs.pfx-password }}"
+
+          if (-not (Test-Path $msixPath)) {
+            Write-Host "WARNING: MSIX not found at $msixPath, skipping signing."
+            exit 0
+          }
+
+          if (-not (Test-Path $pfxPath)) {
+            Write-Host "WARNING: Certificate not found at $pfxPath, skipping signing."
+            exit 0
+          }
+
+          # Find signtool.exe (part of Windows SDK)
+          $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "signtool.exe" `
+            | Sort-Object FullName -Descending `
+            | Select-Object -First 1 -ExpandProperty FullName
+
+          if (-not $signtool) {
+            Write-Host "WARNING: signtool.exe not found. MSIX will remain unsigned."
+            exit 0
+          }
+
+          Write-Host "Signing MSIX with: $signtool"
+
+          # Sign the MSIX package
+          & $signtool sign `
+            /fd SHA256 `
+            /f $pfxPath `
+            /p $pfxPassword `
+            /tr http://timestamp.digicert.com `
+            /td SHA256 `
+            /v `
+            $msixPath 2>&1 | Write-Host
+
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ MSIX signed successfully!"
+          } else {
+            Write-Host "❌ Signing failed with exit code: $LASTEXITCODE"
+          }
+
+      # ---------------------------------------------------------------
+      # List all generated artifacts for debugging
+      # ---------------------------------------------------------------
+      - name: List artifacts
+        shell: pwsh
+        run: |
+          Write-Host "Generated artifacts:"
+          Get-ChildItem -Path "${{ runner.temp }}\artifacts" -Recurse | Select-Object Name, Length | Format-Table -AutoSize
+
+      # ---------------------------------------------------------------
+      # Create GitHub Release
+      # ---------------------------------------------------------------
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: LangKeep ${{ steps.version.outputs.version }}
+          body: |
+            ## LangKeep ${{ steps.version.outputs.version }}
+
+            ### 📦 Downloads
+
+            - **MSIX Installer**: `LangKeep-${{ steps.version.outputs.version }}-x64.msix`
+            - **Portable ZIP**: `LangKeep-${{ steps.version.outputs.version }}-portable-x64.zip`
+
+            ### 🚀 Installation
+
+            **MSIX**: Download the MSIX, open it, and install. Requires Windows 10 or 11.
+
+            **Portable**: Download the ZIP, extract, and run `LangKeep.exe`. No installation needed.
+
+            ### ✨ Features
+
+            - Automatic keyboard layout switching per application
+            - Learns user preferences automatically
+            - System tray integration
+            - Open source (MIT License)
+
+            ### 🔧 System Requirements
+
+            - Windows 10 (version 1809+) or Windows 11
+            - x64 processor
+
+            ### 📝 Notes
+
+            The MSIX package is signed with a self-signed certificate. To install it:
+            1. Download and double-click the MSIX.
+            2. Click **More info** → **Run anyway**.
+            3. That's it — no Developer Mode needed.
+
+            Alternatively, install via PowerShell:
+            ```powershell
+            Add-AppPackage -Path "LangKeep-${{ steps.version.outputs.version }}-x64.msix"
+            ```
+
+            If you still see installation errors, enable **Developer Mode** in Windows Settings → Privacy & security → For developers.
+          draft: false
+          prerelease: false
+          files: |
+            ${{ runner.temp }}/artifacts/LangKeep-${{ steps.version.outputs.version }}-x64.msix
+            ${{ runner.temp }}/artifacts/LangKeep-${{ steps.version.outputs.version }}-portable-x64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
