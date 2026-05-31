@@ -171,12 +171,12 @@ jobs:
           } else {
             Write-Host "No MSIX_SIGNING_CERTIFICATE secret. Generating self-signed certificate..."
             $cert = New-SelfSignedCertificate `
-              -Type Custom `
+              -Type CodeSigningCert `
               -Subject "CN=Borislav Enchev, O=LangKeep" `
-              -KeyUsage DigitalSignature `
               -FriendlyName "LangKeep Build Certificate" `
               -CertStoreLocation "Cert:\CurrentUser\My" `
-              -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3") `
+              -KeyExportPolicy Exportable `
+              -KeyLength 2048 `
               -NotAfter (Get-Date).AddYears(3)
             $securePassword = ConvertTo-SecureString -String $pfxPassword -Force -AsPlainText
             Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $securePassword | Out-Null
