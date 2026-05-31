@@ -6,7 +6,7 @@
   IgnorableNamespaces="uap rescap">
 
   <Identity Name="LangKeep"
-            Publisher="CN=BorislavEnchev"
+            Publisher="CN=Borislav Enchev, O=LangKeep"
             Version="0.1.0.0" />
 
   <Properties>
