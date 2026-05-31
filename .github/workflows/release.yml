@@ -249,11 +249,20 @@ jobs:
             exit 0
           }
 
-          # Find signtool.exe (part of Windows SDK)
+          # Find signtool.exe (part of Windows SDK) — prefer x64 version for MSIX signing
           $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" `
             -Recurse -Filter "signtool.exe" `
+            | Where-Object { $_.DirectoryName -match '\\x64\\|\\arm64\\' } `
             | Sort-Object FullName -Descending `
             | Select-Object -First 1 -ExpandProperty FullName
+
+          if (-not $signtool) {
+            # Fallback: any version
+            $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" `
+              -Recurse -Filter "signtool.exe" `
+              | Sort-Object FullName -Descending `
+              | Select-Object -First 1 -ExpandProperty FullName
+          }
 
           if (-not $signtool) {
             Write-Host "WARNING: signtool.exe not found. MSIX will remain unsigned."
