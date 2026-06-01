@@ -161,7 +161,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     public async Task DeleteSelectedAsync()
     {
-        if (SelectedItem is null)
+        var selected = SelectedItem;
+        if (selected is null)
         {
             StatusMessage = "No item selected.";
             return;
@@ -169,16 +170,16 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         try
         {
-            var identity = new LangKeep.Core.Models.ApplicationIdentity(SelectedItem.ProcessName);
+            var identity = new LangKeep.Core.Models.ApplicationIdentity(selected.ProcessName);
             await _repository.DeleteAsync(identity);
-            _ruleService.Remove(SelectedItem.ProcessName);
-            Preferences.Remove(SelectedItem);
+            _ruleService.Remove(selected.ProcessName);
+            Preferences.Remove(selected);
 
-            StatusMessage = $"Deleted: {SelectedItem.ProcessName}";
+            StatusMessage = $"Deleted: {selected.ProcessName}";
             SelectedItem = null;
         }
         catch (Exception ex)
-        { 
+        {
             _logger.LogError(ex, "Failed to delete preference.");
             StatusMessage = "Failed to delete preference.";
         }
