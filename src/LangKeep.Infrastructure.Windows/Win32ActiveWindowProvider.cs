@@ -20,6 +20,7 @@ public sealed class Win32ActiveWindowProvider : IActiveWindowProvider, IDisposab
     private Win32Native.WinEventDelegate? _winEventDelegate;
     private IntPtr _foregroundHook = IntPtr.Zero;
     private bool _disposed;
+    private ActiveWindowInfo? _lastExternalActiveWindow;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Win32ActiveWindowProvider"/> class.
@@ -29,6 +30,9 @@ public sealed class Win32ActiveWindowProvider : IActiveWindowProvider, IDisposab
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
+
+    /// <inheritdoc />
+    public ActiveWindowInfo? LastExternalActiveWindow => _lastExternalActiveWindow;
 
     /// <inheritdoc />
     public event EventHandler<ActiveWindowInfo>? ActiveWindowChanged;
@@ -174,7 +178,14 @@ public sealed class Win32ActiveWindowProvider : IActiveWindowProvider, IDisposab
                 processPath: null,
                 windowTitle: title);
 
-            return new ActiveWindowInfo(application, layout, windowTitle: title, windowHandle: hwnd);
+            var info = new ActiveWindowInfo(application, layout, windowTitle: title, windowHandle: hwnd);
+
+            if (pid != (uint)Process.GetCurrentProcess().Id)
+            {
+                _lastExternalActiveWindow = info;
+            }
+
+            return info;
         }
         catch (Exception ex)
         {

@@ -109,7 +109,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         try
         {
-            var active = _activeWindowProvider.GetActiveWindow();
+            var active = _activeWindowProvider.LastExternalActiveWindow ?? _activeWindowProvider.GetActiveWindow();
             if (active is null)
             {
                 StatusMessage = "Could not detect active window.";

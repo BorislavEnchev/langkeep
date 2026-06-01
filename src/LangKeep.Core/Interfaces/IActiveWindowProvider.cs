@@ -22,6 +22,11 @@ public interface IActiveWindowProvider
     ActiveWindowInfo? GetActiveWindow();
 
     /// <summary>
+    /// Gets the last active window that belongs to an external process (not LangKeep).
+    /// </summary>
+    ActiveWindowInfo? LastExternalActiveWindow { get; }
+
+    /// <summary>
     /// Occurs when the active (foreground) window changes.
     /// </summary>
     event EventHandler<ActiveWindowInfo>? ActiveWindowChanged;
