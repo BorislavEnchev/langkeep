@@ -1,0 +1,52 @@
+# LangKeep Winget Submission
+#
+# Automatically submits a package update to the community winget-pkgs
+# repository when a new GitHub Release is published.
+#
+# After the initial manual submission (see docs/releasing.md), this
+# workflow handles all subsequent version updates automatically.
+
+name: Submit to Winget
+
+on:
+  release:
+    types: [published]
+
+# Grant GITHUB_TOKEN permissions to create releases and upload artifacts
+permissions:
+  contents: read
+
+env:
+  PACKAGE_ID: BorislavEnchev.LangKeep
+  PACKAGE_NAME: LangKeep
+
+jobs:
+  winget:
+    name: Submit to winget-pkgs
+    runs-on: windows-latest
+
+    steps:
+      - name: Install wingetcreate
+        shell: pwsh
+        run: dotnet tool install -g wingetcreate
+
+      - name: Derive version and installer URL
+        id: info
+        shell: pwsh
+        run: |
+          $tag = "${{ github.event.release.tag_name }}"
+          $version = $tag -replace '^v', ''
+          $repo = "${{ github.repository }}"
+          $url = "https://github.com/$repo/releases/download/$tag/${{ env.PACKAGE_NAME }}-${version}-portable-x64.zip"
+          Write-Host "Version: $version"
+          Write-Host "Installer URL: $url"
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "installer-url=$url" >> $env:GITHUB_OUTPUT
+
+      - name: Submit to winget-pkgs
+        shell: pwsh
+        run: |
+          wingetcreate update ${{ env.PACKAGE_ID }} `
+            --version ${{ steps.info.outputs.version }} `
+            --urls ${{ steps.info.outputs.installer-url }} `
+            --token ${{ secrets.WINGET_TOKEN }}

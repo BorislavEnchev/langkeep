@@ -269,9 +269,9 @@ jobs:
 
             ### Installation
 
-            **MSIX**: Download, double-click, click **More info -> Run anyway**, and install.
+            **🟢 Recommended — Portable ZIP**: Download, extract, and run `LangKeep.exe`. No installation, no special setup needed.
 
-            **Portable**: Download the ZIP, extract, and run `LangKeep.exe`. No installation needed.
+            **MSIX Installer**: Requires **Developer Mode** (`Settings → Privacy & security → For developers`) or the self-signed certificate to be installed. A trusted signing certificate is coming in a future release.
 
             ### System Requirements
 

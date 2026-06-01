@@ -15,6 +15,7 @@ Releases are fully automated via **GitHub Actions**. When a version tag (e.g., `
 5. Builds an **MSIX** installer package.
 6. Signs the MSIX package with a self-signed certificate (generated fresh per build).
 7. Creates a **GitHub Release** with release notes and uploads both artifacts.
+8. Automatically submits a **Winget** package update to `microsoft/winget-pkgs` (via the `Submit to Winget` workflow).
 
 ---
 
@@ -64,8 +65,89 @@ Once the workflow completes:
 3. Verify both artifacts are attached:
    - `LangKeep-{version}-x64.msix`
    - `LangKeep-{version}-portable-x64.zip`
-4. Download and test the MSIX installer on a clean Windows machine.
-5. Download and test the portable ZIP (extract and run).
+4. Download and test the portable ZIP (extract and run).
+5. Check the **Actions** tab — the `Submit to Winget` workflow should have triggered and opened a PR to `microsoft/winget-pkgs`. Verify the PR is green (checks pass).
+
+---
+
+## 📦 Winget (Windows Package Manager)
+
+LangKeep is published to the [community winget-pkgs repository](https://github.com/microsoft/winget-pkgs). Users can install it with:
+
+```powershell
+winget install BorislavEnchev.LangKeep
+```
+
+Winget installs the **portable ZIP** version (no Developer Mode needed, no MSIX signing required).
+
+### Initial Setup (One-Time)
+
+The first submission to winget-pkgs must be done manually. After that, the CI handles updates automatically.
+
+**Prerequisites:**
+- A [GitHub Personal Access Token (PAT)](https://github.com/settings/tokens) with `repo` scope
+- The PAT added as a repository secret named `WINGET_TOKEN` (go to `Settings → Secrets and variables → Actions`)
+
+**Steps:**
+
+1. Download the portable ZIP from the latest GitHub Release:
+   ```
+   https://github.com/BorislavEnchev/langkeep/releases
+   ```
+
+2. Install `wingetcreate`:
+   ```powershell
+   dotnet tool install -g wingetcreate
+   ```
+
+3. Generate the manifest from the ZIP URL:
+   ```powershell
+   wingetcreate new --url https://github.com/BorislavEnchev/langkeep/releases/download/v0.2.1/LangKeep-0.2.1-portable-x64.zip
+   ```
+   This interactively asks for metadata (publisher, name, description, license, etc.).
+
+4. Submit the manifest:
+   ```powershell
+   wingetcreate submit --token YOUR_PAT_HERE manifests/b/BorislavEnchev/LangKeep
+   ```
+
+Once merged, the CI workflow (`.github/workflows/winget.yml`) automatically updates the package on every subsequent release.
+
+### How the CI Works
+
+On every `release` (published) event, the `Submit to Winget` workflow:
+
+1. Installs `wingetcreate` on a Windows runner.
+2. Runs `wingetcreate update BorislavEnchev.LangKeep` with the new version and installer URL.
+3. The tool forks `microsoft/winget-pkgs`, updates the manifest (including the SHA-256 hash), and opens a PR.
+
+**You just need to verify the PR is green and merge it.**
+
+---
+
+## 🏪 Microsoft Store (Optional)
+
+Publishing to the Microsoft Store gives users a one-click install experience with automatic updates and no "Unknown publisher" warnings. As of 2025, Microsoft has removed onboarding fees for individual developers.
+
+### Prerequisites
+
+- A [Microsoft Partner Center](https://partner.microsoft.com/) developer account (free for individuals)
+- Your app must pass the [Windows App Certification Kit (WACK)](https://learn.microsoft.com/en-us/windows/apps/publish/store/windows-app-certification-kit)
+
+### Benefits
+
+- ✅ **No Developer Mode required** — Microsoft signs the MSIX
+- ✅ **Automatic updates** — Store handles them silently
+- ✅ **Discoverability** — users browsing the Store can find LangKeep
+- ✅ **Trusted publisher** — no security warnings
+
+### CI Integration (Future)
+
+If you decide to publish to the Store, the release pipeline can be extended to:
+1. Run the WACK tests on the built MSIX
+2. Submit the MSIX to the Partner Center via the Microsoft Store submission API
+
+This is a future enhancement — not yet implemented.
 
 ---
 
@@ -73,7 +155,7 @@ Once the workflow completes:
 
 | Artifact | Format | Description |
 |----------|--------|-------------|
-| `LangKeep-{version}-x64.msix` | MSIX package (self-signed) | Self-signed Windows app package, installable on Windows 10/11. Double-click → **More info** → **Run anyway**. Supports future Store publishing. |
+| `LangKeep-{version}-x64.msix` | MSIX package (self-signed) | Self-signed Windows app package, installable on Windows 10/11. ⚠️ Requires Developer Mode (or a trusted signing cert). |
 | `LangKeep-{version}-portable-x64.zip` | ZIP archive | Self-contained executable with all dependencies. Run without installation. |
 
 ### Portable ZIP Contents
@@ -95,7 +177,9 @@ LICENSE.txt
 - **Min OS Version**: Windows 10.0.17763.0
 - **Capabilities**: `runFullTrust` (full trust desktop app)
 
-> The self-signed approach means users see "Publisher: Unknown" and click **More info → Run anyway** on first install. This is intentional — it avoids requiring Developer Mode while keeping the install simple. See [Code Signing](#-code-signing-upgrading-to-a-trusted-certificate) below for upgrading to a trusted certificate.
+> ⚠️ A **self-signed MSIX** requires **Developer Mode** enabled in Windows Settings (`Settings → Privacy & security → For developers → Developer Mode`) **or** installing the certificate's `.cer` file into the `Trusted Root Certification Authorities` store. This is a significant friction point. Until a trusted certificate is obtained, **the portable ZIP is the recommended distribution method** — it requires no special setup.
+>
+> See [Code Signing](#-code-signing-upgrading-to-a-trusted-certificate) below for upgrading to a trusted certificate, or [Microsoft Store Publishing](#microsoft-store-optional) for the smoothest install experience.
 
 ---
 
@@ -123,10 +207,10 @@ The release pipeline **automatically generates a self-signed certificate** durin
 4. The cert is discarded after the build
 
 This means:
-- ✅ **No Developer Mode required** — users can double-click and install
-- ✅ **No manual setup needed** — everything happens automatically in CI
+- ❌ **Developer Mode required** — users must enable Developer Mode in Windows Settings
 - ❌ **Publisher shows as "Unknown"** — because the cert is self-signed, not from a trusted CA
 - ❌ **New warning per install** — each build generates a new cert, so users may see the warning on each update
+- ✅ **No manual setup needed** — everything happens automatically in CI
 
 ### Upgrading to a Trusted Certificate
 
