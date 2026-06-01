@@ -257,6 +257,11 @@ jobs:
           body: |
             ## LangKeep ${{ steps.version.outputs.version }}
 
+            ### What's New in ${{ steps.version.outputs.version }}
+
+            - 🐛 **Fixed**: App no longer crashes when deleting a language preference in the settings window.
+            - 🐛 **Fixed**: "Add Current" now correctly uses the most recently active foreground window instead of an outdated reference.
+
             ### Downloads
 
             - **MSIX Installer**: `LangKeep-${{ steps.version.outputs.version }}-x64.msix` (self-signed)
