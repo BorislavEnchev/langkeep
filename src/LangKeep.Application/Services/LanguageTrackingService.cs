@@ -28,6 +28,7 @@ public sealed class LanguageTrackingService : IDisposable
     // per-window layouts or by LangKeep's own auto-switching, not the user.
     private DateTime _lastWindowSwitchTime = DateTime.MinValue;
     private static readonly TimeSpan LearningCooldown = TimeSpan.FromMilliseconds(800);
+    private static readonly TimeSpan ForegroundSettleDelay = TimeSpan.FromMilliseconds(50);
 
     // Set while LangKeep is actively switching a layout so the polling timer
     // doesn't re-learn the change as a "user" preference.
@@ -122,7 +123,7 @@ public sealed class LanguageTrackingService : IDisposable
 
         // Skip transient explorer.exe events (Alt+Tab shell, Start menu transitions).
         // These fire briefly before the real target window gets focus and cause
-        // stale-evaluation skips that waste the 300ms delay budget.
+        // stale evaluations.
         if (string.Equals(info.Application.ProcessName, "explorer.exe",
                 StringComparison.OrdinalIgnoreCase)
             && string.IsNullOrEmpty(info.WindowTitle))
@@ -150,10 +151,9 @@ public sealed class LanguageTrackingService : IDisposable
         var snapshot = info;
         _ = Task.Run(() =>
         {
-            // Delay to allow the foreground window and its input state to stabilise
-            // (focus transition may still be in progress when the WinEvent fires).
-            // 300 ms gives even heavy apps (browsers with many tabs) time to settle.
-            Thread.Sleep(300);
+            // A short settle delay avoids racing focus transitions without making
+            // every Alt+Tab feel delayed.
+            Thread.Sleep(ForegroundSettleDelay);
             EvaluateAndSwitch(snapshot);
         });
     }

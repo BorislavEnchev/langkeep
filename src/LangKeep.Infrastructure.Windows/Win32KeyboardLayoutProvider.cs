@@ -18,7 +18,7 @@ public sealed class Win32KeyboardLayoutProvider : IKeyboardLayoutProvider, IDisp
     private Timer? _pollingTimer;
     private bool _disposed;
 
-    private static readonly TimeSpan PollingInterval = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan PollingInterval = TimeSpan.FromMilliseconds(100);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Win32KeyboardLayoutProvider"/> class.
