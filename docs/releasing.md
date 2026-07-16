@@ -141,6 +141,58 @@ Publishing to the Microsoft Store gives users a one-click install experience wit
 - ✅ **Discoverability** — users browsing the Store can find LangKeep
 - ✅ **Trusted publisher** — no security warnings
 
+### Store Submission Checklist
+
+Before submitting to the Store, ensure the following:
+
+**App Identity**
+- [ ] App name and description finalized in Partner Center
+- [ ] Privacy policy URL hosted and accessible (required even for apps that don't collect data)
+- [ ] App category and subcategory selected (e.g., "Productivity → Tools")
+
+**Package**
+- [ ] MSIX built with `build-msix.ps1 -SkipSign` (unsigned, for Store re-signing)
+- [ ] Version number matches the intended release version
+- [ ] **`runFullTrust` capability justified** — Partner Center requires a text explanation (e.g., "Native desktop app requiring full trust to monitor foreground windows and switch keyboard layouts via Win32 APIs")
+- [ ] Package passes **WACK** (Windows App Certification Kit):
+  ```powershell
+  # Run from Developer Command Prompt for VS:
+  wack "C:\path\to\LangKeep-0.2.2.0-x64.msix"
+  ```
+- [ ] All WACK tests pass (no failures; some warnings may be acceptable)
+
+**Screenshots & Store Listing**
+- [ ] At least 1 screenshot (1366×768 or larger, PNG format)
+- [ ] App tile icon (300×300 PNG)
+- [ ] Store description written (max 10,000 characters)
+- [ ] Release notes for the version prepared
+
+**Upload**
+1. Sign in to [Partner Center](https://partner.microsoft.com/)
+2. Create a new product → **Windows app**
+3. Upload the unsigned MSIX (`LangKeep-0.2.2.0-x64.msix`) — the Store will re-sign it automatically
+4. Fill in the store listing (description, screenshots, category)
+5. Set pricing (Free is recommended)
+6. Submit for certification
+
+> **Note**: The MSIX built by `build-msix.ps1` is self-signed for local testing. 
+> The Store re-signs the package during submission, so the self-signature doesn't matter.
+> Use the **unsigned MSIX** for upload (or the signed one — the Store strips and replaces the signature).
+
+### Local MSIX Build
+
+For local testing or manual Store submission, use the build script:
+
+```powershell
+# From the repo root:
+.\build-msix.ps1 -Version "0.2.2.0"
+```
+
+This creates `artifacts\LangKeep-{version}-x64.msix` with:
+- Self-contained .NET 9 publish (no runtime dependency)
+- Resolved AppxManifest.xml with correct version and entry point
+- Self-signed certificate for local installs (requires Developer Mode)
+
 ### CI Integration (Future)
 
 If you decide to publish to the Store, the release pipeline can be extended to:
