@@ -208,19 +208,27 @@ public sealed class LanguageTrackingService : IDisposable
 
     private void EvaluateAndSwitch(ActiveWindowInfo info)
     {
-        // Verify the foreground window hasn't changed since the WinEvent fired
-        // by comparing the snapshot's HWND (info.WindowHandle) against the
-        // current foreground window. Using the snapshot's HWND rather than the
-        // global _lastActiveHwnd is essential because _lastActiveHwnd may have
-        // already been overwritten by a subsequent WinEvent during our delay.
+        // Verify the foreground application hasn't changed since the WinEvent fired.
+        // We compare by process name rather than HWND because some apps (e.g., modern
+        // Windows 11 Notepad, WinUI apps) create multiple HWNDs during initialization.
+        // The foreground HWND captured in the WinEvent may differ from the current one
+        // even though the same application is active and should be evaluated.
         var currentInfo = _activeWindowProvider.GetActiveWindow();
-        if (currentInfo?.WindowHandle != info.WindowHandle)
+        if (currentInfo is null)
         {
             _logger.LogDebug(
-                "Foreground changed during delay: was 0x{SnapshotHwnd:X8}, now 0x{CurrentHwnd:X8}. " +
-                "Skipping stale evaluation for {ProcessName}.",
-                info.WindowHandle.ToInt64(), (currentInfo?.WindowHandle ?? IntPtr.Zero).ToInt64(),
+                "Foreground window is no longer available. Skipping stale evaluation for {ProcessName}.",
                 info.Application.ProcessName);
+            return;
+        }
+
+        if (!string.Equals(currentInfo.Application.ProcessName, info.Application.ProcessName,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogDebug(
+                "Foreground changed to a different application during delay: " +
+                "was {OldProcessName}, now {NewProcessName}. Skipping stale evaluation.",
+                info.Application.ProcessName, currentInfo.Application.ProcessName);
             return;
         }
 
@@ -271,7 +279,7 @@ public sealed class LanguageTrackingService : IDisposable
         try
         {
             if (!_layoutSwitcher.TrySwitchLayout(
-                    info.Application, result.TargetLayout, windowHandle: info.WindowHandle))
+                    info.Application, result.TargetLayout, windowHandle: currentInfo.WindowHandle))
             {
                 _logger.LogWarning(
                     "Failed to switch layout for {ProcessName} to {Layout}.",

@@ -35,6 +35,20 @@ public sealed class KeyboardLayout : IEquatable<KeyboardLayout>
     /// </summary>
     public string DisplayName { get; }
 
+    private static readonly CultureInfo[]? _installedCultures = GetInstalledCultures();
+
+    private static CultureInfo[]? GetInstalledCultures()
+    {
+        try
+        {
+            return CultureInfo.GetCultures(CultureTypes.InstalledWin32Cultures);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     /// <summary>
     /// Creates a <see cref="KeyboardLayout"/> from a Windows LCID (language ID).
     /// </summary>
@@ -42,15 +56,39 @@ public sealed class KeyboardLayout : IEquatable<KeyboardLayout>
     /// <returns>A new <see cref="KeyboardLayout"/> instance.</returns>
     public static KeyboardLayout FromLcid(int lcid)
     {
+        // Try direct CultureInfo lookup first.
         try
         {
             var culture = new CultureInfo(lcid);
-            return new KeyboardLayout(culture.Name, culture.DisplayName);
+            // The invariant culture (LCID 0) has an empty Name — skip it and fall
+            // through to the primary-language fallback below.
+            if (!string.IsNullOrWhiteSpace(culture.Name))
+                return new KeyboardLayout(culture.Name, culture.DisplayName);
         }
         catch (CultureNotFoundException)
         {
-            return new KeyboardLayout($"unknown-0x{lcid:X4}", $"Unknown (LCID: 0x{lcid:X4})");
+            // Fall through to the primary-language fallback.
         }
+
+        // Primary-language fallback:
+        // Some threads (e.g., console windows hosted by conhost.exe) report a
+        // primary-language-only LangID (e.g., 0x0009 for English) instead of a
+        // full LCID with sub-language (e.g., 0x0409 for en-US). Find any installed
+        // culture sharing the same primary language.
+        int primaryLangId = lcid & 0x03FF;
+        if (_installedCultures is not null)
+        {
+            foreach (var culture in _installedCultures)
+            {
+                if ((culture.LCID & 0x03FF) == primaryLangId &&
+                    !string.IsNullOrWhiteSpace(culture.Name))
+                {
+                    return new KeyboardLayout(culture.Name, culture.DisplayName);
+                }
+            }
+        }
+
+        return new KeyboardLayout($"unknown-0x{lcid:X4}", $"Unknown (LCID: 0x{lcid:X4})");
     }
 
     /// <inheritdoc />
