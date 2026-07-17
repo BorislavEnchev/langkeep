@@ -146,14 +146,16 @@ Publishing to the Microsoft Store gives users a one-click install experience wit
 Before submitting to the Store, ensure the following:
 
 **App Identity**
-- [ ] App name and description finalized in Partner Center
+- [ ] App name confirmed as **BorislavEnchev.LangKeep** (reserved in Partner Center)
+- [ ] Publisher CN set to `E3AA02F7-BF83-4DF1-B162-309541922462`
 - [ ] Privacy policy URL hosted and accessible (required even for apps that don't collect data)
 - [ ] App category and subcategory selected (e.g., "Productivity → Tools")
 
 **Package**
 - [ ] MSIX built with `build-msix.ps1 -SkipSign` (unsigned, for Store re-signing)
 - [ ] Version number matches the intended release version
-- [ ] **`runFullTrust` capability justified** — Partner Center requires a text explanation (e.g., "Native desktop app requiring full trust to monitor foreground windows and switch keyboard layouts via Win32 APIs")
+- [ ] **`runFullTrust` capability justified** — Provide this explanation:
+     > *"Native desktop application requiring full trust to monitor foreground windows via SetWinEventHook and switch keyboard layouts via ActivateKeyboardLayout Win32 APIs."*
 - [ ] Package passes **WACK** (Windows App Certification Kit):
   ```powershell
   # Run from Developer Command Prompt for VS:
@@ -169,11 +171,14 @@ Before submitting to the Store, ensure the following:
 
 **Upload**
 1. Sign in to [Partner Center](https://partner.microsoft.com/)
-2. Create a new product → **Windows app**
+2. Go to **Product management** → your LangKeep product
 3. Upload the unsigned MSIX (`LangKeep-0.2.2.0-x64.msix`) — the Store will re-sign it automatically
 4. Fill in the store listing (description, screenshots, category)
 5. Set pricing (Free is recommended)
-6. Submit for certification
+6. Under **Submission options**, provide justification for `runFullTrust` capability:
+   > *"Native desktop application requiring full trust to monitor foreground windows via SetWinEventHook and switch keyboard layouts via ActivateKeyboardLayout Win32 APIs."*
+7. Ensure your **Privacy Policy URL** is set (e.g., hosted on GitHub Pages)
+8. Submit for certification
 
 > **Note**: The MSIX built by `build-msix.ps1` is self-signed for local testing. 
 > The Store re-signs the package during submission, so the self-signature doesn't matter.
@@ -222,8 +227,11 @@ LICENSE.txt
 
 ### MSIX Package Details
 
-- **Identity**: `LangKeep`
-- **Publisher**: `CN=BorislavEnchev`
+- **Identity**: `BorislavEnchev.LangKeep`
+- **Publisher**: `CN=E3AA02F7-BF83-4DF1-B162-309541922462`
+- **Store Identity Name**: `BorislavEnchev.LangKeep`
+- **Package Family Name (PFN)**: `BorislavEnchev.LangKeep_hyks3tcdy1c88`
+- **Store ID**: `9NFNVQ97185F`
 - **Signing**: Self-signed certificate generated fresh each build via `New-SelfSignedCertificate`
 - **Signature algorithm**: SHA256 with timestamp from DigiCert (`http://timestamp.digicert.com`)
 - **Min OS Version**: Windows 10.0.17763.0

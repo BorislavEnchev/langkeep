@@ -176,7 +176,7 @@ jobs:
             Write-Host "No MSIX_SIGNING_CERTIFICATE secret. Generating self-signed certificate..."
             $cert = New-SelfSignedCertificate `
               -Type CodeSigningCert `
-              -Subject "CN=Borislav Enchev, O=LangKeep" `
+              -Subject "CN=E3AA02F7-BF83-4DF1-B162-309541922462" `
               -FriendlyName "LangKeep Build Certificate" `
               -CertStoreLocation "Cert:\CurrentUser\My" `
               -KeyExportPolicy Exportable `

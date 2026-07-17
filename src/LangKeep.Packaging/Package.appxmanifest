@@ -5,24 +5,23 @@
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   IgnorableNamespaces="uap rescap">
 
-  <Identity Name="LangKeep"
-            Publisher="CN=Borislav Enchev, O=LangKeep"
+  <Identity Name="BorislavEnchev.LangKeep"
+            Publisher="CN=E3AA02F7-BF83-4DF1-B162-309541922462"
             Version="0.2.2.0" />
 
   <Properties>
     <DisplayName>LangKeep</DisplayName>
     <PublisherDisplayName>Borislav Enchev</PublisherDisplayName>
-    <Logo>Resources\Square150x150Logo.png</Logo>
+    <Logo>Resources\StoreLogo.png</Logo>
     <Description>Automatically remembers and restores your preferred keyboard input language for each application.</Description>
   </Properties>
 
   <Dependencies>
-    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
-    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
   </Dependencies>
 
   <Resources>
-    <Resource Language="x-generate" />
+    <Resource Language="en-US" />
   </Resources>
 
   <Applications>
