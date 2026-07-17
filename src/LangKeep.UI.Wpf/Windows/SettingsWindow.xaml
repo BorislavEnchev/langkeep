@@ -106,11 +106,10 @@
         <!-- Preferences Table -->
         <DataGrid Grid.Row="2"
                   ItemsSource="{Binding Preferences}"
-                  SelectedItem="{Binding SelectedItem}"
                   AutoGenerateColumns="False"
                   CanUserAddRows="False"
                   CanUserDeleteRows="False"
-                  IsReadOnly="True"
+                  IsReadOnly="False"
                   Background="White"
                   BorderBrush="#E0E0E0"
                   BorderThickness="1"
@@ -134,23 +133,26 @@
                 </Style>
             </DataGrid.Resources>
             <DataGrid.Columns>
-                <DataGridCheckBoxColumn Header="Enabled"
-                                        Binding="{Binding IsEnabled}"
-                                        Width="70">
-                    <DataGridCheckBoxColumn.ElementStyle>
-                        <Style>
-                            <Setter Property="FrameworkElement.HorizontalAlignment" Value="Center" />
-                        </Style>
-                    </DataGridCheckBoxColumn.ElementStyle>
-                </DataGridCheckBoxColumn>
+                <DataGridTemplateColumn Header="Selected" Width="70">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 <DataGridTextColumn Header="Application"
                                     Binding="{Binding ProcessName}"
+                                    IsReadOnly="True"
                                     Width="*" />
                 <DataGridTextColumn Header="Language"
                                     Binding="{Binding DisplayName}"
+                                    IsReadOnly="True"
                                     Width="2*" />
                 <DataGridTextColumn Header="Tag"
                                     Binding="{Binding LanguageTag}"
+                                    IsReadOnly="True"
                                     Width="100" />
             </DataGrid.Columns>
         </DataGrid>

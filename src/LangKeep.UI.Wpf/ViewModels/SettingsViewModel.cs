@@ -54,12 +54,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     private string _statusMessage = string.Empty;
 
     /// <summary>
-    /// Gets or sets the selected preference item.
-    /// </summary>
-    [ObservableProperty]
-    private PreferenceItem? _selectedItem;
-
-    /// <summary>
     /// Loads preferences from the repository.
     /// </summary>
     [RelayCommand]
@@ -78,7 +72,6 @@ public sealed partial class SettingsViewModel : ObservableObject
                     ProcessName = pref.Application.ProcessName,
                     LanguageTag = pref.Layout.LanguageTag,
                     DisplayName = pref.Layout.DisplayName,
-                    IsEnabled = pref.IsEnabled,
                 });
             }
 
@@ -131,7 +124,6 @@ public sealed partial class SettingsViewModel : ObservableObject
                     ProcessName = active.Application.ProcessName,
                     LanguageTag = active.CurrentLayout.LanguageTag,
                     DisplayName = active.CurrentLayout.DisplayName,
-                    IsEnabled = true,
                 });
             }
 
@@ -156,66 +148,38 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Deletes the selected preference.
+    /// Deletes all selected preferences.
     /// </summary>
     [RelayCommand]
     public async Task DeleteSelectedAsync()
     {
-        var selected = SelectedItem;
-        if (selected is null)
+        var toDelete = Preferences.Where(p => p.IsSelected).ToList();
+        if (toDelete.Count == 0)
         {
-            StatusMessage = "No item selected.";
+            StatusMessage = "No items selected.";
             return;
         }
 
-        try
+        int deleted = 0;
+        foreach (var item in toDelete)
         {
-            var identity = new LangKeep.Core.Models.ApplicationIdentity(selected.ProcessName);
-            await _repository.DeleteAsync(identity);
-            _ruleService.Remove(selected.ProcessName);
-            Preferences.Remove(selected);
-
-            StatusMessage = $"Deleted: {selected.ProcessName}";
-            SelectedItem = null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to delete preference.");
-            StatusMessage = "Failed to delete preference.";
-        }
-    }
-
-    /// <summary> 
-    /// Toggles the enabled state of a preference.
-    /// </summary>
-    [RelayCommand] 
-    public async Task ToggleEnabledAsync(PreferenceItem item)
-    {
-        try
-        {
-            var identity = new LangKeep.Core.Models.ApplicationIdentity(item.ProcessName);
-            var layout = new KeyboardLayout(item.LanguageTag);
-            var preference = new LanguagePreference(identity, layout, item.IsEnabled);
-            await _repository.SaveAsync(preference);
-
-            // Update in-memory rule
-            var rule = _ruleService.Rules.FirstOrDefault(r =>
-                string.Equals(r.ProcessName, item.ProcessName, StringComparison.OrdinalIgnoreCase));
-
-            if (rule is not null)
+            try
             {
-                rule.IsEnabled = item.IsEnabled;
+                var identity = new LangKeep.Core.Models.ApplicationIdentity(item.ProcessName);
+                await _repository.DeleteAsync(identity);
+                _ruleService.Remove(item.ProcessName);
+                Preferences.Remove(item);
+                deleted++;
             }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to delete preference for {ProcessName}.", item.ProcessName);
+            }
+        }
 
-            StatusMessage = item.IsEnabled
-                ? $"Enabled: {item.ProcessName}"
-                : $"Disabled: {item.ProcessName}";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to toggle preference.");
-            StatusMessage = "Failed to update preference.";
-        }
+        StatusMessage = deleted > 0
+            ? $"Deleted {deleted} preference(s)."
+            : "Failed to delete preferences.";
     }
 
     /// <summary>
@@ -279,5 +243,5 @@ public sealed partial class PreferenceItem : ObservableObject
     private string _displayName = string.Empty;
 
     [ObservableProperty]
-    private bool _isEnabled = true;
+    private bool _isSelected;
 }
