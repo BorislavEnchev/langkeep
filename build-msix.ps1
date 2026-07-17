@@ -62,14 +62,54 @@ $msixVersion = $parts[0..3] -join '.'
 $content = [System.IO.File]::ReadAllText($ManifestSrc)
 $content = $content.Replace('$targetnametoken$', 'LangKeep')
 $content = $content.Replace('$targetentrypoint$', 'Windows.FullTrustApplication')
-$content = $content -replace 'Version="\d+\.\d+\.\d+\.\d+"', "Version=`"$msixVersion`""
+$content = $content -replace '\bVersion="\d+\.\d+\.\d+\.\d+"', "Version=`"$msixVersion`""
 [System.IO.File]::WriteAllText("$StagingDir\AppxManifest.xml", $content)
 
 Write-Host "Manifest version set to: $msixVersion" -ForegroundColor Green
 
-# ───────────────────── Step 4: Create MSIX ─────────────────────
+# ───────────────────── Step 4: Generate resources.pri ─────────────────────
 
-Write-Host "`n=== Step 4: Creating MSIX package ===" -ForegroundColor Cyan
+Write-Host "`n=== Step 4: Generating resources.pri ===" -ForegroundColor Cyan
+
+$makePri = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" `
+    -Recurse -Filter "MakePri.exe" `
+    | Sort-Object FullName -Descending `
+    | Select-Object -First 1 -ExpandProperty FullName
+
+if (-not $makePri) {
+    Write-Host "WARNING: MakePri.exe not found. Resources.pri will not be generated." -ForegroundColor Yellow
+    Write-Host "WACK app-resources test may fail. Install Windows SDK to fix." -ForegroundColor Yellow
+} else {
+    Write-Host "Using MakePri: $makePri"
+
+    $priConfig = "$StagingDir\priconfig.xml"
+    $priOutput = "$StagingDir\resources.pri"
+
+    # Create a priconfig.xml for the staging directory
+    Write-Host "  Creating priconfig.xml..."
+    & $makePri createconfig /cf $priConfig /dq en-US /overwrite 2>&1
+
+    if ($LASTEXITCODE -eq 0 -and (Test-Path $priConfig)) {
+        # Generate resources.pri from the staged files
+        & $makePri new /pr $StagingDir /cf $priConfig /of $priOutput /o 2>&1
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "resources.pri generated successfully." -ForegroundColor Green
+        } else {
+            Write-Host "WARNING: MakePri.exe exit code $LASTEXITCODE. Continuing with fallback." -ForegroundColor Yellow
+            # If PRI generation fails, MakeAppx will create a default one
+        }
+
+        # Clean up the config file (not needed in the package)
+        Remove-Item $priConfig -Force -ErrorAction SilentlyContinue
+    } else {
+        Write-Host "WARNING: Failed to create priconfig.xml" -ForegroundColor Yellow
+    }
+}
+
+# ───────────────────── Step 5: Create MSIX ─────────────────────
+
+Write-Host "`n=== Step 5: Creating MSIX package ===" -ForegroundColor Cyan
 
 $makeAppx = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" `
     -Recurse -Filter "MakeAppx.exe" `
@@ -89,13 +129,13 @@ if ($LASTEXITCODE -eq 0) {
     throw "MakeAppx failed with exit code: $LASTEXITCODE"
 }
 
-# ───────────────────── Step 5: Sign (self-signed) ─────────────────────
+# ───────────────────── Step 6: Sign (self-signed) ─────────────────────
 
 if ($SkipSign) {
-    Write-Host "`n=== Step 5: Skipped (SkipSign flag set) ===" -ForegroundColor Yellow
+    Write-Host "`n=== Step 6: Skipped (SkipSign flag set) ===" -ForegroundColor Yellow
     Write-Host "MSIX is unsigned. Ready for Store submission (Store will re-sign)." -ForegroundColor Yellow
 } else {
-    Write-Host "`n=== Step 5: Signing MSIX with self-signed certificate ===" -ForegroundColor Cyan
+    Write-Host "`n=== Step 6: Signing MSIX with self-signed certificate ===" -ForegroundColor Cyan
 
 $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" `
     -Filter "signtool.exe" -Recurse -Force `
@@ -114,7 +154,7 @@ if (-not $signtool) {
     # Generate self-signed cert
     $cert = New-SelfSignedCertificate `
         -Type CodeSigningCert `
-        -Subject "CN=Borislav Enchev, O=LangKeep" `
+        -Subject "CN=E3AA02F7-BF83-4DF1-B162-309541922462" `
         -FriendlyName "LangKeep Build Certificate" `
         -CertStoreLocation "Cert:\CurrentUser\My" `
         -KeyExportPolicy Exportable `
