@@ -1,6 +1,6 @@
 # Installation
 
-LangKeep is available as an **MSIX Installer** or a **Portable ZIP**. Both are produced automatically for every tagged release.
+LangKeep is available from the **Microsoft Store**, as an **MSIX Installer**, or as a **Portable ZIP**.
 
 ---
 
@@ -9,13 +9,23 @@ LangKeep is available as an **MSIX Installer** or a **Portable ZIP**. Both are p
 - **Operating System**: Windows 10 (version 1809 or later) or Windows 11
 - **Architecture**: x64 (64-bit)
 - **Storage**: ~50 MB
-- **Permissions**: No administrator rights required for the portable version
+- **Permissions**: No administrator rights required
 
 ---
 
-## Option 1 — MSIX Installer (Recommended)
+## Option 1 — Microsoft Store (Recommended)
 
-The MSIX package provides a proper Windows installation experience with automatic updates support and clean uninstall.
+Install directly from the [Microsoft Store](https://www.microsoft.com/store/apps/9NFNVQ97185F) — one click, automatic updates, no Developer Mode needed.
+
+1. Open the **Microsoft Store** app.
+2. Search for **LangKeep**.
+3. Click **Install**.
+
+Or use this link: [https://www.microsoft.com/store/apps/9NFNVQ97185F](https://www.microsoft.com/store/apps/9NFNVQ97185F)
+
+---
+
+## Option 2 — MSIX Installer (GitHub Releases)
 
 ### Download
 
@@ -23,67 +33,30 @@ Get the latest MSIX from the [releases page](https://github.com/BorislavEnchev/l
 
 ### Install
 
-#### Method A — Double-click (easiest)
-
 1. Download `LangKeep-{version}-x64.msix`.
 2. Double-click the file.
 3. Click **Install**.
 4. Launch LangKeep from the Start Menu.
 
-#### Method B — PowerShell
-
-```powershell
-Add-AppPackage -Path "LangKeep-{version}-x64.msix"
-```
-
-#### Method C — If installation is blocked
-
-If Windows displays "This app can't run on your PC" or the install button is grayed out:
-
-1. **Enable Developer Mode**:
-   - Open **Settings** → **Privacy & security** → **For developers**
-   - Turn on **Developer Mode**
-
-2. **Enable sideloading** (alternative):
-   - Open **Settings** → **Apps** → **Apps & features**
-   - Under **Choose where to get apps**, select **Sideload apps**
-
-3. **Install via PowerShell with bypass**:
-   ```powershell
-   Add-AppPackage -Path "LangKeep-{version}-x64.msix"
-   ```
+> **Note**: MSIX packages from GitHub Releases are self-signed. If installation is blocked, enable **Developer Mode** in Windows Settings → Privacy & security → For developers.
 
 ### Uninstall
 
 **Settings** → **Apps** → **Installed apps** → **LangKeep** → **Uninstall**
 
-Or via PowerShell:
-
-```powershell
-Get-AppPackage -Name "LangKeep" | Remove-AppPackage
-```
-
 ---
 
-## Option 2 — Portable ZIP
+## Option 3 — Portable ZIP
 
 The portable version runs without installation — ideal for USB drives, temporary use, or systems where you cannot install software.
 
-### Download
-
-Get the latest ZIP from the [releases page](https://github.com/BorislavEnchev/langkeep/releases/latest).
-
-### Install
-
-1. Download `LangKeep-{version}-portable-x64.zip`.
-2. Extract the ZIP to a folder of your choice (e.g., `C:\Tools\LangKeep`).
+1. Download `LangKeep-{version}-portable-x64.zip` from the [releases page](https://github.com/BorislavEnchev/langkeep/releases/latest).
+2. Extract to any folder.
 3. Run `LangKeep.exe`.
-
-> **Tip**: Pin `LangKeep.exe` to your taskbar or Start Menu for quick access.
 
 ### Uninstall
 
-Simply delete the extracted folder. LangKeep stores its preferences at `%AppData%\LangKeep\` — if you want a clean removal, delete that folder too.
+Delete the extracted folder. Preferences are stored at `%AppData%\LangKeep\` — delete that too for a clean removal.
 
 ---
 

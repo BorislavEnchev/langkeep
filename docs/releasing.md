@@ -6,7 +6,7 @@ This document describes the release process for LangKeep maintainers.
 
 ## Overview
 
-Releases are fully automated via **GitHub Actions**. When a version tag (e.g., `v0.1.0`) is pushed to the repository, the CI pipeline:
+Releases are fully automated via **GitHub Actions**. When a version tag (e.g., `v0.2.2`) is pushed to the repository, the CI pipeline:
 
 1. Restores dependencies and builds the solution.
 2. Runs all unit tests.
@@ -41,11 +41,8 @@ Create a semantic version tag and push it to GitHub:
 git checkout main
 git pull origin main
 
-# Create a tag (examples: v0.1.0, v0.2.0, v1.0.0)
-git tag v0.1.0
-
-# Push the tag
-git push origin v0.1.0
+git tag v0.2.2
+git push origin v0.2.2
 ```
 
 ### 3. Wait for CI

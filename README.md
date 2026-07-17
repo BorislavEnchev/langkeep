@@ -4,6 +4,7 @@
 [![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4)](https://dotnet.microsoft.com/download/dotnet/9.0)
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D4)](https://www.microsoft.com/windows)
 [![Release](https://img.shields.io/github/v/release/BorislavEnchev/langkeep?include_prereleases&sort=semver)](https://github.com/BorislavEnchev/langkeep/releases)
+[![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-9NFNVQ97185F-0078D4)](https://www.microsoft.com/store/apps/9NFNVQ97185F)
 
 **LangKeep** is a Windows tray application that automatically remembers and restores your preferred keyboard input language for each application.
 
@@ -26,18 +27,22 @@ Tired of manually switching between keyboard layouts every time you switch from 
 
 ## 📥 Installation
 
-### Option 1 — MSIX Installer (Recommended)
+### Option 1 — Microsoft Store (Recommended)
 
-Download the latest MSIX package from the [releases page](https://github.com/BorislavEnchev/langkeep/releases/latest).
+Get it from the [Microsoft Store](https://www.microsoft.com/store/apps/9NFNVQ97185F) for one-click install, automatic updates, and no security warnings.
+
+### Option 2 — MSIX Installer (GitHub Releases)
+
+Download the latest MSIX from the [releases page](https://github.com/BorislavEnchev/langkeep/releases/latest).
 
 1. Download `LangKeep-{version}-x64.msix`.
 2. Open the downloaded file.
 3. Click **Install**.
 4. Launch LangKeep from the Start Menu.
 
-> **Note**: The MSIX package is unsigned. If installation is blocked, enable **Developer Mode** in Windows Settings → Privacy & security → For developers.
+> **Note**: MSIX packages from GitHub Releases are self-signed. If installation is blocked, enable **Developer Mode** in Windows Settings → Privacy & security → For developers.
 
-### Option 2 — Portable Version
+### Option 3 — Portable Version
 
 Download the latest ZIP from the [releases page](https://github.com/BorislavEnchev/langkeep/releases/latest).
 
@@ -63,50 +68,21 @@ For full installation details, including troubleshooting, see [docs/installation
 ### Build & Run
 
 ```bash
-# Clone the repository
 git clone https://github.com/BorislavEnchev/langkeep.git
 cd langkeep
-
-# Build the solution
 dotnet build
-
-# Run the application
 dotnet run --project src/LangKeep.UI.Wpf
 ```
 
-### Run from Explorer
-
-You can also double-click `src/LangKeep.UI.Wpf/bin/Debug/net9.0-windows/LangKeep.exe` after building.
-
 ---
-
-## 🏗️ Architecture
-
-LangKeep follows **Clean Architecture** principles with clear separation of concerns:
-
-```
-LangKeep.sln
-├── src/
-│   ├── LangKeep.Core/              # Domain models & interfaces (platform-agnostic)
-│   ├── LangKeep.Application/       # Use cases & application services
-│   ├── LangKeep.Infrastructure.Windows/  # Win32 interop, persistence, startup
-│   └── LangKeep.UI.Wpf/            # WPF tray application (MVVM)
-├── tests/
-│   ├── LangKeep.Core.Tests/        # Domain model unit tests
-│   └── LangKeep.Application.Tests/ # Application service unit tests
-└── spikes/
-    └── LangKeep.Spike/             # Exploratory Win32 validation project
-```
-
-For detailed architecture documentation, see [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md).
 
 ## 🔧 How It Works
 
-1. **Active Window Monitoring** — LangKeep uses `SetWinEventHook` (Win32 API) to detect when the foreground window changes.
-2. **Layout Detection** — A polling timer checks `GetKeyboardLayout` for the current window's thread every 500ms.
-3. **Rule Matching** — When a window switch is detected, LangKeep evaluates matching rules by process name.
-4. **Layout Switching** — If a matching rule is found, LangKeep uses `ActivateKeyboardLayout` to switch to the preferred layout.
-5. **Automatic Learning** — When the user manually changes the keyboard layout, LangKeep saves this preference for the active application.
+1. **Active Window Monitoring** — Uses `SetWinEventHook` (Win32) to detect foreground window changes.
+2. **Layout Detection** — Polls `GetKeyboardLayout` every 500ms.
+3. **Rule Matching** — Evaluates saved preferences by process name.
+4. **Layout Switching** — Uses `ActivateKeyboardLayout` to restore the preferred layout.
+5. **Automatic Learning** — Saves your preference when you manually change layouts.
 
 ## 💾 Data Storage
 
@@ -149,46 +125,21 @@ dotnet test tests/LangKeep.Application.Tests
 
 - Windows 10 or Windows 11
 - [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
-- [Visual Studio 2022](https://visualstudio.microsoft.com/) (recommended) or any .NET-compatible editor
 
 ### Commands
 
 ```bash
-# Restore dependencies
 dotnet restore
-
-# Build the solution
 dotnet build
-
-# Run all tests
 dotnet test
-
-# Run the application
 dotnet run --project src/LangKeep.UI.Wpf
-```
-
-### Project Structure
-
-```
-src/
-├── LangKeep.Core/                 # Domain models, value objects, interfaces
-├── LangKeep.Application/          # Services, use cases, event orchestration
-├── LangKeep.Infrastructure.Windows/  # Win32 interop, persistence, startup
-└── LangKeep.UI.Wpf/               # WPF tray application, MVVM
-
-tests/
-├── LangKeep.Core.Tests/           # Domain model unit tests
-└── LangKeep.Application.Tests/    # Application service unit tests
 ```
 
 ### Release Process
 
-To create a new release:
-
 ```bash
-# Tag the release
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.2
+git push origin v0.2.2
 ```
 
 GitHub Actions automatically builds, packages, and publishes the release. See [docs/releasing.md](docs/releasing.md) for details.
@@ -198,14 +149,6 @@ GitHub Actions automatically builds, packages, and publishes the release. See [d
 ## 🗺️ Roadmap
 
 For the full roadmap, see [docs/ROADMAP.md](docs/ROADMAP.md).
-
-Highlights:
-
-- **Per-window matching** based on window title
-- **Browser extension** integration for tab-level language switching
-- **macOS support** via CoreGraphics and InputMethodKit
-- **Enhanced rule engine** with regex, glob patterns, and priority-based matching
-- **Real-time rule evaluation preview** in the settings UI
 
 ---
 

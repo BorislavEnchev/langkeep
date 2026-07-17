@@ -46,7 +46,7 @@ By participating in this project, you agree to maintain a respectful, inclusive,
 
 - Windows 10 or Windows 11
 - [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
-- [Visual Studio 2026](https://visualstudio.microsoft.com/) (recommended) or any .NET-compatible editor
+- [Visual Studio 2022](https://visualstudio.microsoft.com/) (recommended) or any .NET-compatible editor
 
 ### Quick Start
 
@@ -56,6 +56,7 @@ cd langkeep
 dotnet restore
 dotnet build
 dotnet test
+# Run the UI app (requires Windows with Win32 API access)
 dotnet run --project src/LangKeep.UI.Wpf
 ```
 
