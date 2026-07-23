@@ -4,7 +4,7 @@
 # Prerequisites: Windows SDK (for MakeAppx.exe), .NET 9 SDK
 
 param(
-    [string]$Version = "0.2.2.0",
+    [string]$Version = "0.2.3.0",
     [string]$Configuration = "Release",
     [string]$Runtime = "win-x64",
     [switch]$SkipSign

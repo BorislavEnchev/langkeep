@@ -2,6 +2,7 @@ using System.Linq;
 using System.Windows;
 using LangKeep.Application;
 using LangKeep.Application.Services;
+using LangKeep.Core.Interfaces;
 using LangKeep.Infrastructure.Windows;
 using LangKeep.UI.Wpf.Services;
 using LangKeep.UI.Wpf.ViewModels;
@@ -88,6 +89,13 @@ public sealed partial class App : System.Windows.Application
             // Start language tracking (async — loads preferences without blocking the UI thread)
             var trackingService = _host.Services.GetRequiredService<LanguageTrackingService>();
             await trackingService.StartAsync();
+
+            // Register to start automatically with Windows (on every launch to ensure it stays registered)
+            var startupManager = _host.Services.GetRequiredService<IStartupManager>();
+            if (!startupManager.IsRegistered)
+            {
+                startupManager.Register();
+            }
 
             logger.LogInformation("LangKeep started successfully.");
         }

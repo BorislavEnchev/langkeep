@@ -12,9 +12,9 @@ public sealed class WindowsStartupManager : IStartupManager
 {
     private readonly ILogger<WindowsStartupManager> _logger;
     private readonly string _executablePath;
+    private readonly string _registryValueName;
 
     private const string RegistryKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-    private const string RegistryValueName = "LangKeep";
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WindowsStartupManager"/> class.
@@ -23,12 +23,17 @@ public sealed class WindowsStartupManager : IStartupManager
     /// <param name="executablePath">
     /// Optional path to the executable. If not specified, uses the entry-assembly location.
     /// </param>
+    /// <param name="registryValueName">
+    /// Optional registry value name. If not specified, uses "LangKeep".
+    /// </param>
     public WindowsStartupManager(
         ILogger<WindowsStartupManager> logger,
-        string? executablePath = null)
+        string? executablePath = null,
+        string? registryValueName = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _executablePath = executablePath ?? Environment.ProcessPath ?? string.Empty;
+        _registryValueName = registryValueName ?? "LangKeep";
     }
 
     /// <inheritdoc />
@@ -39,7 +44,7 @@ public sealed class WindowsStartupManager : IStartupManager
             try
             {
                 using var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath);
-                var value = key?.GetValue(RegistryValueName) as string;
+                var value = key?.GetValue(_registryValueName) as string;
                 return string.Equals(value, _executablePath, StringComparison.OrdinalIgnoreCase);
             }
             catch (Exception ex)
@@ -62,7 +67,7 @@ public sealed class WindowsStartupManager : IStartupManager
                 return false;
             }
 
-            key.SetValue(RegistryValueName, _executablePath);
+            key.SetValue(_registryValueName, _executablePath);
             _logger.LogInformation("Registered to start with Windows: {Path}", _executablePath);
             return true;
         }
@@ -79,9 +84,9 @@ public sealed class WindowsStartupManager : IStartupManager
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath, writable: true);
-            if (key?.GetValue(RegistryValueName) is not null)
+            if (key?.GetValue(_registryValueName) is not null)
             {
-                key.DeleteValue(RegistryValueName);
+                key.DeleteValue(_registryValueName);
                 _logger.LogInformation("Unregistered from Windows startup.");
             }
 
