@@ -43,13 +43,7 @@ public sealed class Win32KeyboardLayoutProvider : IKeyboardLayoutProvider, IDisp
     {
         // Initialize the previous layout to the current one so the first poll
         // doesn't falsely trigger a layout-change event.
-        IntPtr hwnd = Win32Native.GetForegroundWindow();
-        if (hwnd != IntPtr.Zero)
-        {
-            uint threadId = (uint)Win32Native.GetWindowThreadProcessId(hwnd, out _);
-            IntPtr hkl = Win32Native.GetKeyboardLayout(threadId);
-            _previousLayoutLangId = (int)(hkl.ToInt64() & 0xFFFF);
-        }
+        _previousLayoutLangId = GetCurrentForegroundLangId();
 
         _pollingTimer = new Timer(
             _ => CheckLayout(),
@@ -75,14 +69,11 @@ public sealed class Win32KeyboardLayoutProvider : IKeyboardLayoutProvider, IDisp
     {
         try
         {
-            // Get the foreground window's thread layout
             IntPtr hwnd = Win32Native.GetForegroundWindow();
             if (hwnd == IntPtr.Zero)
                 return null;
 
-            int threadId = Win32Native.GetWindowThreadProcessId(hwnd, out _);
-            IntPtr hkl = Win32Native.GetKeyboardLayout((uint)threadId);
-            int langId = (int)(hkl.ToInt64() & 0xFFFF);
+            int langId = GetCurrentForegroundLangId();
             return KeyboardLayout.FromLcid(langId);
         }
         catch (Exception ex)
@@ -108,15 +99,9 @@ public sealed class Win32KeyboardLayoutProvider : IKeyboardLayoutProvider, IDisp
     {
         try
         {
-            IntPtr hwnd = Win32Native.GetForegroundWindow();
-            if (hwnd == IntPtr.Zero)
+            int langId = GetCurrentForegroundLangId();
+            if (langId == 0)
                 return;
-
-            // We need the thread ID of the foreground window
-            uint threadId = (uint)Win32Native.GetWindowThreadProcessId(hwnd, out _);
-
-            IntPtr hkl = Win32Native.GetKeyboardLayout(threadId);
-            int langId = (int)(hkl.ToInt64() & 0xFFFF);
 
             if (langId != _previousLayoutLangId)
             {
@@ -132,5 +117,28 @@ public sealed class Win32KeyboardLayoutProvider : IKeyboardLayoutProvider, IDisp
             // Swallow transient failures; polling will retry.
             _logger.LogTrace(ex, "Transient error in layout polling.");
         }
+    }
+
+    /// <summary>
+    /// Reads the low-word language id of the keyboard layout for the thread that
+    /// currently owns keyboard input.
+    /// <para>
+    /// Multi-threaded UI frameworks (Electron, WebView2 — e.g. the new Teams,
+    /// <c>msteams.exe</c>) host keyboard focus on a different thread than the one that
+    /// owns the top-level foreground window. Reading the layout from the window-owning
+    /// thread returns a stale value there, so the thread that actually owns keyboard
+    /// input is resolved via <see cref="KeyboardInputThread"/>.
+    /// </para>
+    /// </summary>
+    /// <returns>The low-word language id, or 0 when it cannot be determined.</returns>
+    private static int GetCurrentForegroundLangId()
+    {
+        IntPtr hwnd = Win32Native.GetForegroundWindow();
+        if (hwnd == IntPtr.Zero)
+            return 0;
+
+        uint windowThreadId = (uint)Win32Native.GetWindowThreadProcessId(hwnd, out _);
+        uint inputThreadId = KeyboardInputThread.Resolve(hwnd, windowThreadId, out _);
+        return KeyboardInputThread.GetLayoutLangId(inputThreadId);
     }
 }

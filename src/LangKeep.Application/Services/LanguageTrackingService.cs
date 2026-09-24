@@ -195,6 +195,28 @@ public sealed class LanguageTrackingService : IDisposable
 
         var application = currentWindow.Application;
 
+        // Guard against garbage attributions observed in the wild:
+        // - processes that exited before the read ("PID(n)")
+        // - threads reporting an unset HKL ("unknown-0x0000"), e.g. during focus
+        //   transitions in multi-threaded hosts like the new Teams.
+        // Learning such entries would persist junk preferences.
+        if (application.ProcessName.StartsWith("PID(", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogDebug(
+                "Suppressing learning: foreground process could not be identified ({ProcessName}).",
+                application.ProcessName);
+            return;
+        }
+
+        if (layout.LanguageTag.StartsWith("unknown-", StringComparison.OrdinalIgnoreCase) ||
+            layout.LanguageTag == "unknown-0x0000")
+        {
+            _logger.LogDebug(
+                "Suppressing learning: layout reported for {ProcessName} is unknown ({LanguageTag}).",
+                application.ProcessName, layout.LanguageTag);
+            return;
+        }
+
         _logger.LogDebug(
             "Layout changed for {ProcessName}: {Layout}",
             application.ProcessName,

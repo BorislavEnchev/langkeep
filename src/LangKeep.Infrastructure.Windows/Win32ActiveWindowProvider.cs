@@ -168,8 +168,25 @@ public sealed class Win32ActiveWindowProvider : IActiveWindowProvider, IDisposab
             // Process name
             string processName = GetProcessName(pid);
 
-            // Keyboard layout
-            IntPtr hkl = Win32Native.GetKeyboardLayout(threadId);
+            // Keyboard layout.
+            // Multi-threaded UI frameworks (Electron, WebView2 — e.g. the new Teams,
+            // msteams.exe) host keyboard focus on a different thread than the one that
+            // owns the top-level window. Reading the layout from the window-owning
+            // thread returns a stale value, so resolve the thread that actually owns
+            // keyboard input via GetGUIThreadInfo.
+            uint inputThreadId = KeyboardInputThread.Resolve(
+                hwnd,
+                fallbackThreadId: threadId,
+                out IntPtr focusHwnd);
+
+            if (focusHwnd != IntPtr.Zero && focusHwnd != hwnd)
+            {
+                _logger.LogTrace(
+                    "Keyboard focus for HWND 0x{Hwnd:X8} ({ProcessName}) is on child HWND 0x{FocusHwnd:X8}, input thread {InputThreadId} (window thread {ThreadId}).",
+                    hwnd.ToInt64(), processName, focusHwnd.ToInt64(), inputThreadId, threadId);
+            }
+
+            IntPtr hkl = Win32Native.GetKeyboardLayout(inputThreadId);
             int langId = (int)(hkl.ToInt64() & 0xFFFF);
             var layout = KeyboardLayout.FromLcid(langId);
 

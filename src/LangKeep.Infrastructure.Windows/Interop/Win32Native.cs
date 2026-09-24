@@ -43,7 +43,6 @@ internal static class Win32Native
 
     internal const ushort VK_LWIN = 0x5B;
     internal const ushort VK_SPACE = 0x20;
-
     // ───────────────────── Structures ─────────────────────
 
     [StructLayout(LayoutKind.Sequential)]
@@ -59,10 +58,62 @@ internal static class Win32Native
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    internal struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct MOUSEINPUT
+    {
+        public int dx;
+        public int dy;
+        public uint mouseData;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    /// <summary>
+    /// Describes the GUI state (active/focus/capture windows, caret) of a thread's input queue.
+    /// Used to locate the window that actually owns keyboard focus, which in multi-thread
+    /// UI frameworks (Electron, WebView2, UWP hosts) is often a different thread than the
+    /// one owning the foreground top-level window.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct GUITHREADINFO
+    {
+        public int cbSize;
+        public uint flags;
+        public IntPtr hwndActive;
+        public IntPtr hwndFocus;
+        public IntPtr hwndCapture;
+        public IntPtr hwndMenuOwner;
+        public IntPtr hwndMoveSize;
+        public IntPtr hwndCaret;
+        public RECT rcCaret;
+    }
+
+    /// <summary>
+    /// Native INPUT structure. Declared with an explicit layout covering the full
+    /// MOUSEINPUT union member so that <c>Marshal.SizeOf&lt;INPUT&gt;()</c> equals the
+    /// native size (40 bytes on x64). A keyboard-only declaration yields 32 bytes and
+    /// makes <c>SendInput</c> silently reject the call (it returns 0).
+    /// </summary>
+    [StructLayout(LayoutKind.Explicit)]
     internal struct INPUT
     {
+        [FieldOffset(0)]
         public uint type;
+
+        [FieldOffset(8)]
         public KEYBDINPUT ki;
+
+        [FieldOffset(8)]
+        public MOUSEINPUT mi;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -146,6 +197,14 @@ internal static class Win32Native
 
     [DllImport("user32.dll")]
     internal static extern int GetKeyboardLayoutList(int nBuff, [Out] IntPtr[]? lpList);
+
+    /// <summary>
+    /// Retrieves GUI-state information (including the focus window) for the given thread.
+    /// Pass <c>0</c> to query the foreground thread.
+    /// </summary>
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetGUIThreadInfo(uint idThread, out GUITHREADINFO lpgui);
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern uint SendInput(

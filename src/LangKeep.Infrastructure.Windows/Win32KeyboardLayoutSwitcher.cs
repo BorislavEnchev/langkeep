@@ -292,6 +292,13 @@ public sealed class Win32KeyboardLayoutSwitcher : IKeyboardLayoutSwitcher
 
     /// <summary>
     /// Re-reads the current keyboard layout of the specified or foreground window.
+    /// <para>
+    /// Multi-threaded UI frameworks (Electron, WebView2 — e.g. the new Teams,
+    /// <c>msteams.exe</c>) host keyboard focus on a different thread than the one that
+    /// owns the top-level window, so the layout is read from the thread that actually
+    /// owns keyboard input (resolved via <see cref="KeyboardInputThread"/>), not from
+    /// the window-owning thread.
+    /// </para>
     /// </summary>
     private static int GetLayoutLangId(IntPtr windowHandle)
     {
@@ -302,9 +309,9 @@ public sealed class Win32KeyboardLayoutSwitcher : IKeyboardLayoutSwitcher
         if (hwnd == IntPtr.Zero)
             return 0;
 
-        uint threadId = (uint)Win32Native.GetWindowThreadProcessId(hwnd, out _);
-        IntPtr hkl = Win32Native.GetKeyboardLayout(threadId);
-        return (int)(hkl.ToInt64() & 0xFFFF);
+        uint windowThreadId = (uint)Win32Native.GetWindowThreadProcessId(hwnd, out _);
+        uint inputThreadId = KeyboardInputThread.Resolve(hwnd, windowThreadId, out _);
+        return KeyboardInputThread.GetLayoutLangId(inputThreadId);
     }
 
     /// <summary>
