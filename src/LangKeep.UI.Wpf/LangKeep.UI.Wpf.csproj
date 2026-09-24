@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\LangKeep.ico" />
+    <Resource Include="Resources\LangKeep.ico" />
   </ItemGroup>
 
   <ItemGroup>
