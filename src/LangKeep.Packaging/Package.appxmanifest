@@ -7,7 +7,7 @@
 
   <Identity Name="BorislavEnchev.LangKeep"
             Publisher="CN=E3AA02F7-BF83-4DF1-B162-309541922462"
-            Version="0.2.3.0" />
+            Version="0.2.4.0" />
 
   <Properties>
     <DisplayName>LangKeep</DisplayName>
