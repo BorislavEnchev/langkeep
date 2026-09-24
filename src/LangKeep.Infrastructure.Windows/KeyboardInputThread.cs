@@ -25,6 +25,15 @@ internal static class KeyboardInputThread
     /// Returns the thread id whose <c>GetKeyboardLayout</c> reflects the layout the user
     /// is typing with, and (when available) the window that owns keyboard focus.
     /// </summary>
+    /// <remarks>
+    /// The focus window may belong to a <em>different process</em> than the foreground
+    /// window: the new Microsoft Teams (<c>msteams.exe</c>) hosts its UI — and therefore
+    /// keyboard focus — inside <c>msedgewebview2.exe</c> child processes. The focus
+    /// thread is still authoritative for the layout <em>value</em> because it belongs to
+    /// the foreground input queue, i.e. it is by definition where user keystrokes go.
+    /// Application attribution is unrelated to this and stays derived from the
+    /// foreground window's process.
+    /// </remarks>
     /// <param name="foregroundHwnd">Handle of the foreground (top-level) window.</param>
     /// <param name="fallbackThreadId">
     /// Thread id to use when the GUI state cannot be queried — typically the
@@ -32,7 +41,7 @@ internal static class KeyboardInputThread
     /// </param>
     /// <param name="focusHwnd">
     /// Receives the window that owns keyboard focus, or <see cref="IntPtr.Zero"/> when
-    /// it could not be determined (or belongs to another process).
+    /// it could not be determined.
     /// </param>
     /// <returns>The thread id to read the keyboard layout from.</returns>
     public static uint Resolve(IntPtr foregroundHwnd, uint fallbackThreadId, out IntPtr focusHwnd)
@@ -47,6 +56,9 @@ internal static class KeyboardInputThread
         if (foregroundThreadId == 0)
             return fallbackThreadId;
 
+        // Query the GUI state of the foreground input queue: first scoped to the
+        // window-owning thread, then queue-wide (idThread = 0). Both report the window
+        // that holds keyboard focus for the queue receiving user input.
         if (!TryGetFocusWindow(foregroundThreadId, out IntPtr focusCandidate) &&
             !TryGetFocusWindow(0, out focusCandidate))
         {
@@ -59,11 +71,7 @@ internal static class KeyboardInputThread
 
         uint focusPid = 0;
         uint focusThreadId = (uint)Win32Native.GetWindowThreadProcessId(focusCandidate, out focusPid);
-
-        // Only adopt the focus thread when it belongs to the same process as the
-        // foreground window. This covers multi-threaded UI frameworks while avoiding
-        // cross-process attribution (e.g. search overlays that briefly hold focus).
-        if (focusThreadId == 0 || focusPid != foregroundPid)
+        if (focusThreadId == 0)
             return foregroundThreadId;
 
         // Sanity check: the focus thread must report a usable keyboard layout.

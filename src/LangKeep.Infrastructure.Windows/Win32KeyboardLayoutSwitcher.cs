@@ -15,8 +15,13 @@ namespace LangKeep.Infrastructure.Windows;
 ///   <item><c>SendInput</c> simulating one Win+Space press as a compatibility fallback.</item>
 /// </list>
 ///
-/// The primary path is synchronous and uses only a tiny verification window,
-/// keeping normal switches responsive while retaining a safe fallback.
+/// Some multi-threaded hosts (Electron/WebView2 — e.g. the new Microsoft Teams) process
+/// <c>WM_INPUTLANGCHANGEREQUEST</c> <em>asynchronously</em>: the message is delivered but the
+/// thread layout updates tens (sometimes hundreds) of milliseconds later. A short verification
+/// window therefore falsely reports failure — and a fallback switch fired on top of the
+/// still-in-flight request flips the layout right back. Verification is consequently
+/// async-aware: a generous grace window is observed before the message path is judged, and
+/// the fallback only runs when the direct request provably never landed.
 /// </summary>
 public sealed class Win32KeyboardLayoutSwitcher : IKeyboardLayoutSwitcher
 {
@@ -27,6 +32,11 @@ public sealed class Win32KeyboardLayoutSwitcher : IKeyboardLayoutSwitcher
     private const uint DirectSwitchTimeoutMs = 200;
     private const int FastVerifyRetries = 2;
     private const int FastVerifyDelayMs = 20;
+
+    // Grace window for hosts that apply WM_INPUTLANGCHANGEREQUEST asynchronously
+    // (Teams observed needing >60ms; allows up to ~0.5s).
+    private const int AsyncVerifyRetries = 12;
+    private const int AsyncVerifyDelayMs = 40;
 
     public Win32KeyboardLayoutSwitcher(ILogger<Win32KeyboardLayoutSwitcher> logger)
     {
@@ -58,6 +68,17 @@ public sealed class Win32KeyboardLayoutSwitcher : IKeyboardLayoutSwitcher
                 return false;
             }
 
+            // Already on the target layout — nothing to do. (Without this check the
+            // switch is a no-op request, but reporting failure would trigger fallback
+            // machinery and cycling for no reason.)
+            if (beforeLangId == targetLangId)
+            {
+                _logger.LogDebug(
+                    "Layout already correct for {ProcessName}: LCID 0x{TargetLangId:X4}. No switch needed.",
+                    application.ProcessName, targetLangId);
+                return true;
+            }
+
             // ── Attempt 1: SendMessageTimeout WM_INPUTLANGCHANGEREQUEST ──
             _logger.LogDebug(
                 "Attempt 1 — SendMessageTimeout for {ProcessName} → {Layout}.",
@@ -65,6 +86,19 @@ public sealed class Win32KeyboardLayoutSwitcher : IKeyboardLayoutSwitcher
 
             if (TryViaSendMessageTimeout(application, targetLayout, targetLangId, windowHandle))
                 return true;
+
+            // The direct request was sent; give hosts that apply it asynchronously a
+            // final grace period before concluding it never landed. Firing the
+            // Win+Space fallback while the request is still in flight would cycle the
+            // layout that the request is about to select — flashing BG→US.
+            if (VerifyWithRetries(application, targetLayout, targetLangId, windowHandle,
+                    AsyncVerifyRetries, AsyncVerifyDelayMs, logCompletion: false))
+            {
+                _logger.LogInformation(
+                    "Layout for {ProcessName} reached {Layout} after the direct request settled asynchronously.",
+                    application.ProcessName, targetLayout.LanguageTag);
+                return true;
+            }
 
             // ── Attempt 2: SendInput Win+Space (atomic) ──
             _logger.LogDebug(
@@ -145,6 +179,9 @@ public sealed class Win32KeyboardLayoutSwitcher : IKeyboardLayoutSwitcher
                 "SendMessageTimeout completed for HWND 0x{Hwnd:X8} for {ProcessName} → {Layout} (HKL: 0x{Hkl:X16}).",
                 hwnd.ToInt64(), application.ProcessName, targetLayout.LanguageTag, hkl.ToInt64());
 
+            // Fast path for apps that apply the request synchronously — keeps normal
+            // switches responsive. Hosts that apply asynchronously are given the grace
+            // window by the caller before any fallback is attempted.
             return VerifyQuickly(application, targetLayout, targetLangId, hwnd);
         }
         catch (Exception ex)
@@ -266,25 +303,41 @@ public sealed class Win32KeyboardLayoutSwitcher : IKeyboardLayoutSwitcher
         ApplicationIdentity application, KeyboardLayout targetLayout,
         int targetLangId, IntPtr windowHandle)
     {
-        for (int attempt = 0; attempt <= FastVerifyRetries; attempt++)
+        return VerifyWithRetries(application, targetLayout, targetLangId, windowHandle,
+            FastVerifyRetries, FastVerifyDelayMs, logCompletion: true);
+    }
+
+    /// <summary>
+    /// Polls the input-thread layout until it equals the target or the retry budget
+    /// is exhausted.
+    /// </summary>
+    private bool VerifyWithRetries(
+        ApplicationIdentity application, KeyboardLayout targetLayout,
+        int targetLangId, IntPtr windowHandle,
+        int retries, int delayMs, bool logCompletion)
+    {
+        for (int attempt = 0; attempt <= retries; attempt++)
         {
             int actualLangId = GetLayoutLangId(windowHandle);
             if (actualLangId == targetLangId)
             {
-                _logger.LogDebug(
-                    "Layout verified for {ProcessName} → {Layout} (LCID 0x{TargetLangId:X4}).",
-                    application.ProcessName, targetLayout.LanguageTag, targetLangId);
+                if (logCompletion)
+                {
+                    _logger.LogDebug(
+                        "Layout verified for {ProcessName} → {Layout} (LCID 0x{TargetLangId:X4}).",
+                        application.ProcessName, targetLayout.LanguageTag, targetLangId);
+                }
                 return true;
             }
 
-            if (attempt == FastVerifyRetries)
+            if (attempt == retries)
                 break;
 
             _logger.LogTrace(
                 "Verify attempt {Attempt}/{MaxRetries}: got LCID 0x{ActualLangId:X4}, expected 0x{TargetLangId:X4}.",
-                attempt + 1, FastVerifyRetries + 1, actualLangId, targetLangId);
+                attempt + 1, retries + 1, actualLangId, targetLangId);
 
-            Thread.Sleep(FastVerifyDelayMs);
+            Thread.Sleep(delayMs);
         }
 
         return false;
