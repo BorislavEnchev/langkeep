@@ -20,6 +20,26 @@ $ManifestSrc = Join-Path $RepoRoot "src\LangKeep.Packaging\Package.appxmanifest"
 $ResourcesDir = Join-Path $RepoRoot "src\LangKeep.Packaging\Resources"
 $ProjectWpf = Join-Path $RepoRoot "src\LangKeep.UI.Wpf\LangKeep.UI.Wpf.csproj"
 
+# Resolves a Windows SDK tool by scanning only the versioned SDK folders
+# (e.g. 10.0.22621.0). A recursive scan of the whole bin tree is avoided:
+# it descends into arm/arm64/arch folders and app-package junctions and can
+# effectively hang on exotic filesystem links.
+function Get-SdkTool([string]$ToolName) {
+    $binRoot = "C:\Program Files (x86)\Windows Kits\10\bin"
+    $versionDirs = Get-ChildItem -Path $binRoot -Directory |
+        Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } |
+        Sort-Object Name -Descending
+
+    foreach ($sub in @("x64\$ToolName", $ToolName)) {
+        $tool = $versionDirs |
+            ForEach-Object { Join-Path $_.FullName $sub } |
+            Where-Object { Test-Path $_ } |
+            Select-Object -First 1
+        if ($tool) { return $tool }
+    }
+    return $null
+}
+
 # ───────────────────── Step 1: Publish ─────────────────────
 
 Write-Host "=== Step 1: Publishing WPF app ($Configuration, $Runtime) ===" -ForegroundColor Cyan
@@ -71,10 +91,7 @@ Write-Host "Manifest version set to: $msixVersion" -ForegroundColor Green
 
 Write-Host "`n=== Step 4: Generating resources.pri ===" -ForegroundColor Cyan
 
-$makePri = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" `
-    -Recurse -Filter "MakePri.exe" `
-    | Sort-Object FullName -Descending `
-    | Select-Object -First 1 -ExpandProperty FullName
+$makePri = Get-SdkTool "MakePri.exe"
 
 if (-not $makePri) {
     Write-Host "WARNING: MakePri.exe not found. Resources.pri will not be generated." -ForegroundColor Yellow
@@ -111,17 +128,16 @@ if (-not $makePri) {
 
 Write-Host "`n=== Step 5: Creating MSIX package ===" -ForegroundColor Cyan
 
-$makeAppx = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" `
-    -Recurse -Filter "MakeAppx.exe" `
-    | Sort-Object FullName -Descending `
-    | Select-Object -First 1 -ExpandProperty FullName
+$makeAppx = Get-SdkTool "makeappx.exe"
 
 if (-not $makeAppx) {
     throw "MakeAppx.exe not found. Install Windows SDK."
 }
 
 Write-Host "Using MakeAppx: $makeAppx"
-& $makeAppx pack /p $MsixPath /d $StagingDir /l 2>&1
+# /o = overwrite an existing package without prompting (a prompt hangs
+# non-interactive builds forever).
+& $makeAppx pack /p $MsixPath /d $StagingDir /l /o 2>&1
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "MSIX created: $MsixPath" -ForegroundColor Green
@@ -137,11 +153,7 @@ if ($SkipSign) {
 } else {
     Write-Host "`n=== Step 6: Signing MSIX with self-signed certificate ===" -ForegroundColor Cyan
 
-$signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" `
-    -Filter "signtool.exe" -Recurse -Force `
-    | Where-Object FullName -like '*\x64\signtool.exe' `
-    | Sort-Object FullName -Descending `
-    | Select-Object -First 1 -ExpandProperty FullName
+$signtool = Get-SdkTool "signtool.exe"
 
 if (-not $signtool) {
     Write-Host "WARNING: signtool.exe not found. MSIX will remain unsigned." -ForegroundColor Yellow
